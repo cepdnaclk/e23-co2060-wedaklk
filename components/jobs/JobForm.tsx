@@ -73,7 +73,7 @@ export default function JobForm({ onSuccess }: JobFormProps) {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!session?.user?.isVerified) {
+    if (!(session?.user as any)?.isVerified) {
       setError('You must be verified by the admin before posting a job.');
       return;
     }
@@ -129,7 +129,7 @@ export default function JobForm({ onSuccess }: JobFormProps) {
     }
   };
 
-  if (!session?.user?.isVerified) {
+  if (!(session?.user as any)?.isVerified) {
     return (
       <div className="bg-white border border-amber-200 rounded-3xl p-8 text-center shadow-sm">
         <div className="text-lg font-semibold text-amber-600 mb-2">Verification Required</div>
