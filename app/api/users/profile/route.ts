@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
 
     await connectDB();
 
-    const isVerified = Boolean(session.user.isVerified);
+    const isVerified = Boolean((session.user as any).isVerified);
     const UserModel = isVerified ? VerifiedUser : UnverifiedUser;
 
     const user = await UserModel.findById(session.user.id).select('-password -kyc').lean();
@@ -50,7 +50,7 @@ export async function PATCH(req: NextRequest) {
 
     await connectDB();
 
-    const isVerified = Boolean(session.user.isVerified);
+    const isVerified = Boolean((session.user as any).isVerified);
     const UserModel = isVerified ? VerifiedUser : UnverifiedUser;
 
     const user = await UserModel.findById(session.user.id);
@@ -119,7 +119,7 @@ export async function PUT(req: NextRequest) {
 
     await connectDB();
 
-    const isVerified = Boolean(session.user.isVerified);
+    const isVerified = Boolean((session.user as any).isVerified);
     const UserModel = isVerified ? VerifiedUser : UnverifiedUser;
 
     const user = await UserModel.findById(session.user.id);
