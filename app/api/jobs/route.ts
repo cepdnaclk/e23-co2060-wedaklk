@@ -110,7 +110,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (!session.user.isVerified) {
+    if (!(session.user as any).isVerified) {
       return NextResponse.json({ error: 'Verification required to create jobs' }, { status: 403 });
     }
 
@@ -191,7 +191,7 @@ export async function POST(req: NextRequest) {
         name: displayName,
         email: session.user.email ?? '',
         phone: session.user.mobilePhone ?? '',
-        nicNumber: session.user.nicNumber,
+        nicNumber: (session.user as any).nicNumber,
       },
       status: 'open',
     });
