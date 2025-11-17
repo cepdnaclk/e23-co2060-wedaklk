@@ -81,14 +81,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'You have already placed a bid on this job' }, { status: 409 });
     }
 
+    const userWithCustomProps = session.user as any;
+
     const bid = await Bid.create({
       jobId: new Types.ObjectId(jobId),
       bidder: {
         userId: new Types.ObjectId(session.user.id),
-        name: session.user.name || `${session.user.firstName ?? ''} ${session.user.lastName ?? ''}`.trim(),
+        name: session.user.name || `${userWithCustomProps.firstName ?? ''} ${userWithCustomProps.lastName ?? ''}`.trim(),
         email: session.user.email ?? '',
-        phone: session.user.mobilePhone ?? '',
-        nicNumber: session.user.nicNumber,
+        phone: userWithCustomProps.mobilePhone ?? '',
+        nicNumber: userWithCustomProps.nicNumber,
       },
       price,
       message: message.trim(),
