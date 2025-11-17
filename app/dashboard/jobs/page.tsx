@@ -48,7 +48,7 @@ export default function JobsPage() {
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
-  const isVerified = Boolean(session?.user?.isVerified);
+  const isVerified = Boolean((session?.user as any)?.isVerified);
 
   const fetchSearchSuggestions = async (query: string) => {
     if (!query.trim()) {
