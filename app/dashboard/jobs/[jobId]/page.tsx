@@ -63,7 +63,7 @@ export default function JobDetailPage() {
   const [isAcceptingBidId, setIsAcceptingBidId] = useState<string | null>(null);
 
   const jobId = Array.isArray(params.jobId) ? params.jobId[0] : params.jobId;
-  const isVerified = Boolean(session?.user?.isVerified);
+  const isVerified = Boolean((session?.user as any)?.isVerified);
   const isOwner = useMemo(() => job && session?.user?.id === job.createdBy.userId, [job, session?.user?.id]);
 
   const latParam = searchParams?.get('lat');
