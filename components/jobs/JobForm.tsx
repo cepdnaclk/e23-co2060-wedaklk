@@ -170,7 +170,7 @@ export default function JobForm({ onSuccess }: JobFormProps) {
             <label className="block text-sm font-medium text-slate-700 mb-2">Category</label>
             <select
               value={category}
-              onChange={(e) => setCategory(e.target.value)}
+              onChange={(e) => setCategory(e.target.value as any)}
               className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300 text-black"
             >
               {CATEGORIES.map((item) => (
