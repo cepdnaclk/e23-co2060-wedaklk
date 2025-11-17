@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
       .sort({ createdAt: -1 })
       .lean();
 
-    const formatted = bids.map((bid) => ({
+    const formatted = bids.map((bid: any) => ({
       ...bid,
       _id: bid._id.toString(),
       jobId: bid.jobId.toString(),
