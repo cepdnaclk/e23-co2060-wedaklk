@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (!session.user.isVerified) {
+    if (!(session.user as any).isVerified) {
       return NextResponse.json({ error: 'Verification required to place bids' }, { status: 403 });
     }
 
