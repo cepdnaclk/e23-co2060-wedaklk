@@ -370,7 +370,7 @@ export default function AuthPage() {
   });
 
   const provinces: string[] = ['Western', 'Central', 'Southern', 'Northern', 'Eastern', 'North Western', 'North Central', 'Uva', 'Sabaragamuwa'];
-  const professions: string[] = ['Student', 'Engineer', 'Doctor', 'Teacher', 'Business Owner', 'Other'];
+  const professions: string[] = ['Student','Engineer','Lawyer','Doctor', 'Teacher', 'Business Owner', 'Other'];
 
   const validateStep = (step: number): boolean => {
     const newErrors: Record<string, string> = {};
