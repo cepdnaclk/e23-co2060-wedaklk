@@ -1,11 +1,11 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, CreditCard, Loader2 } from 'lucide-react';
 
-export default function AddCardPage() {
+function AddCardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const jobId = searchParams?.get('jobId') || '';
@@ -137,4 +137,16 @@ export default function AddCardPage() {
   );
 }
 
+export default function AddCardPage() {
+  return (
+    <Suspense fallback={
+      <div className="bg-white border border-slate-200 rounded-3xl p-12 text-center">
+        <Loader2 className="mx-auto animate-spin text-emerald-500" size={32} />
+        <p className="mt-3 text-sm text-slate-500">Loading…</p>
+      </div>
+    }>
+      <AddCardContent />
+    </Suspense>
+  );
+}
 

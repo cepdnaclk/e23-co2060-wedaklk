@@ -21,11 +21,7 @@ export interface IUser extends Document {
     documentBackUrl: string;
     verified: boolean;
   };
-  paymentInfo?: {
-    cardNumber: string;
-    cardHolderName: string;
-    expiryDate: string;
-  };
+
   acceptedTerms: boolean;
   acceptedTermsDate: Date;
   isActive: boolean;
@@ -97,11 +93,7 @@ const UserSchema = new Schema<IUser>({
       default: false
     }
   },
-  paymentInfo: {
-    cardNumber: String,
-    cardHolderName: String,
-    expiryDate: String
-  },
+
   acceptedTerms: {
     type: Boolean,
     required: true,

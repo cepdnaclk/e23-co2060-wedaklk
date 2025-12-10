@@ -1,25 +1,18 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { MapContainer, TileLayer, Marker, Circle, useMapEvents, useMap } from 'react-leaflet';
-import type { LatLngExpression, LatLngBoundsExpression } from 'leaflet';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
+import { useEffect, useState, useRef, useCallback } from 'react';
+import {
+  APIProvider,
+  Map,
+  AdvancedMarker,
+  useMap,
+  useMapsLibrary,
+  MapMouseEvent,
+} from '@vis.gl/react-google-maps';
 import { Search } from 'lucide-react';
 
 const DEFAULT_CENTER = { lat: 7.8731, lng: 80.7718 }; // Sri Lanka approximate center
-const SRI_LANKA_BOUNDS: LatLngBoundsExpression = [
-  [5.5, 79.5], // Southwest
-  [10.0, 82.5], // Northeast
-];
-
-// Fix for default marker icon
-delete (L.Icon.Default.prototype as any)._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
-  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
-});
+const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
 
 export interface MapSelectorInternalProps {
   value?: { lat: number; lng: number } | null;
@@ -30,58 +23,105 @@ export interface MapSelectorInternalProps {
   onChange?: (coords: { lat: number; lng: number }) => void;
 }
 
-function LocationMarker({ 
-  position, 
-  onPositionChange, 
-  readOnly 
-}: { 
-  position: { lat: number; lng: number } | null;
-  onPositionChange: (coords: { lat: number; lng: number }) => void;
-  readOnly: boolean;
-}) {
-  useMapEvents({
-    click(e) {
-      if (!readOnly) {
-        onPositionChange({ lat: e.latlng.lat, lng: e.latlng.lng });
-      }
-    },
-  });
-
-  return position ? <Marker position={[position.lat, position.lng] as LatLngExpression} /> : null;
-}
-
-function MapUpdater({ center, zoom }: { center: LatLngExpression; zoom: number }) {
+// Component to handle map center updates when position changes
+function MapUpdater({ center, zoom }: { center: google.maps.LatLngLiteral; zoom: number }) {
   const map = useMap();
   useEffect(() => {
-    map.setView(center, zoom);
+    if (map) {
+      map.setCenter(center);
+      map.setZoom(zoom);
+    }
   }, [map, center, zoom]);
   return null;
 }
 
-export default function MapSelectorInternal({ 
-  value = null, 
-  radius = 25, 
-  readOnly = false, 
+// Component to handle Places Autocomplete
+function PlaceAutocomplete({
+  onPlaceSelect
+}: {
+  onPlaceSelect: (place: google.maps.places.PlaceResult) => void
+}) {
+  const [inputValue, setInputValue] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+  const places = useMapsLibrary('places');
+  const [autocomplete, setAutocomplete] = useState<google.maps.places.Autocomplete | null>(null);
+
+  useEffect(() => {
+    if (!places || !inputRef.current) return;
+
+    const options = {
+      fields: ['geometry', 'name', 'formatted_address'],
+      componentRestrictions: { country: 'lk' }, // Restrict to Sri Lanka
+    };
+
+    setAutocomplete(new places.Autocomplete(inputRef.current, options));
+  }, [places]);
+
+  useEffect(() => {
+    if (!autocomplete) return;
+
+    const listener = autocomplete.addListener('place_changed', () => {
+      const place = autocomplete.getPlace();
+      onPlaceSelect(place);
+      setInputValue(place.formatted_address || place.name || '');
+    });
+
+    return () => {
+      google.maps.event.removeListener(listener);
+    };
+  }, [autocomplete, onPlaceSelect]);
+
+  return (
+    <div className="relative flex-1">
+      <input
+        ref={inputRef}
+        type="text"
+        value={inputValue}
+        onChange={(e) => setInputValue(e.target.value)}
+        placeholder="Search for a location..."
+        className="w-full px-4 py-2 pr-10 rounded-full border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300 text-black placeholder:text-black placeholder:opacity-60"
+      />
+      <div className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-emerald-500">
+        <Search size={14} />
+      </div>
+    </div>
+  );
+}
+
+export default function MapSelectorInternal({
+  value = null,
+  radius = 25,
+  readOnly = false,
   height = 260,
   showRadius = false,
-  onChange 
+  onChange
 }: MapSelectorInternalProps) {
   const [position, setPosition] = useState<{ lat: number; lng: number } | null>(value);
   const [isLocating, setIsLocating] = useState(false);
   const [geoError, setGeoError] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isSearching, setIsSearching] = useState(false);
-  const [searchError, setSearchError] = useState<string | null>(null);
-  const [suggestions, setSuggestions] = useState<any[]>([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
 
   useEffect(() => {
     setPosition(value);
   }, [value]);
 
-  const handlePositionChange = (coords: { lat: number; lng: number }) => {
+  const handlePositionChange = useCallback((coords: { lat: number; lng: number }) => {
     setPosition(coords);
     onChange?.(coords);
+  }, [onChange]);
+
+  const handleMapClick = (ev: MapMouseEvent) => {
+    if (!readOnly && ev.detail.latLng) {
+      handlePositionChange({ lat: ev.detail.latLng.lat, lng: ev.detail.latLng.lng });
+    }
+  };
+
+  const handlePlaceSelect = (place: google.maps.places.PlaceResult) => {
+    if (place.geometry && place.geometry.location) {
+      handlePositionChange({
+        lat: place.geometry.location.lat(),
+        lng: place.geometry.location.lng(),
+      });
+    }
   };
 
   const handleUseCurrent = () => {
@@ -92,7 +132,7 @@ export default function MapSelectorInternal({
 
     setIsLocating(true);
     setGeoError(null);
-    
+
     navigator.geolocation.getCurrentPosition(
       (result) => {
         const coords = {
@@ -110,208 +150,85 @@ export default function MapSelectorInternal({
     );
   };
 
-  const fetchSuggestions = async (query: string) => {
-    if (!query.trim()) {
-      setSuggestions([]);
-      setShowSuggestions(false);
-      return;
-    }
+  const center = position || DEFAULT_CENTER;
+  const zoom = position ? 15 : 8;
 
-    try {
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
-          query
-        )}&countrycodes=lk&limit=10&addressdetails=1`
-      );
-      const data = await response.json();
-      setSuggestions(data || []);
-      setShowSuggestions(true);
-    } catch (error) {
-      setSuggestions([]);
-    }
-  };
-
-  const handleSearch = async (selectedSuggestion?: any) => {
-    const queryToUse = selectedSuggestion ? selectedSuggestion.display_name : searchQuery;
-    if (!queryToUse.trim()) return;
-
-    setIsSearching(true);
-    setSearchError(null);
-    setShowSuggestions(false);
-
-    try {
-      let result = selectedSuggestion;
-      if (!result) {
-        const response = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
-            searchQuery
-          )}&countrycodes=lk&limit=1`
-        );
-        const data = await response.json();
-        if (data && data.length > 0) {
-          result = data[0];
-        }
-      }
-
-      if (result) {
-        const coords = {
-          lat: parseFloat(result.lat),
-          lng: parseFloat(result.lon),
-        };
-        handlePositionChange(coords);
-        setSearchQuery(selectedSuggestion ? selectedSuggestion.display_name : '');
-        setSuggestions([]);
-      } else {
-        setSearchError('Location not found. Please try a different search term.');
-      }
-    } catch (error) {
-      setSearchError('Failed to search location. Please try again.');
-    } finally {
-      setIsSearching(false);
-    }
-  };
-
-  const center: LatLngExpression = useMemo(() => {
-    if (position) {
-      return [position.lat, position.lng];
-    }
-    return [DEFAULT_CENTER.lat, DEFAULT_CENTER.lng];
-  }, [position]);
+  if (!GOOGLE_MAPS_API_KEY) {
+    return (
+      <div className="h-[260px] flex items-center justify-center bg-slate-100 rounded-2xl border border-slate-200 text-slate-500 text-sm p-4 text-center">
+        Google Maps API Key is missing. Please add NEXT_PUBLIC_GOOGLE_MAPS_API_KEY to your .env.local file.
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-3">
-      {!readOnly && (
-        <div className="flex gap-2">
-          <div className="flex-1 relative">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                fetchSuggestions(e.target.value);
-              }}
-              onFocus={() => {
-                if (suggestions.length > 0) {
-                  setShowSuggestions(true);
-                }
-              }}
-              onBlur={() => {
-                // Delay to allow clicking on suggestions
-                setTimeout(() => setShowSuggestions(false), 200);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  handleSearch();
-                }
-              }}
-              placeholder="Search for a location..."
-              className="w-full px-4 py-2 pr-10 rounded-full border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300 text-black placeholder:text-black placeholder:opacity-60"
-            />
-            <button
-              type="button"
-              onClick={() => handleSearch()}
-              disabled={isSearching || !searchQuery.trim()}
-              className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-emerald-500 text-white hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Search size={14} />
-            </button>
-            {showSuggestions && suggestions.length > 0 && (
-              <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-2xl shadow-lg max-h-60 overflow-y-auto">
-                {suggestions.map((suggestion, index) => (
-                  <button
-                    key={index}
-                    type="button"
-                    onClick={() => handleSearch(suggestion)}
-                    className="w-full text-left px-4 py-3 hover:bg-emerald-50 transition-colors text-black text-sm border-b border-slate-100 last:border-b-0"
-                  >
-                    <div className="font-medium">{suggestion.display_name}</div>
-                  </button>
-                ))}
-              </div>
+    <APIProvider apiKey={GOOGLE_MAPS_API_KEY}>
+      <div className="space-y-3">
+        {!readOnly && (
+          <div className="flex gap-2">
+            <PlaceAutocomplete onPlaceSelect={handlePlaceSelect} />
+          </div>
+        )}
+
+        <div className="flex items-center justify-between gap-4">
+          <div className="text-sm text-slate-600">
+            {position ? (
+              <span>
+                Selected location: <span className="font-semibold text-slate-900">{position.lat.toFixed(4)}, {position.lng.toFixed(4)}</span>
+              </span>
+            ) : (
+              <span>No location selected yet.</span>
             )}
           </div>
-        </div>
-      )}
 
-      {searchError && (
-        <div className="text-xs text-red-600 bg-red-50 rounded-lg p-2">
-          {searchError}
-        </div>
-      )}
-
-      <div className="flex items-center justify-between gap-4">
-        <div className="text-sm text-slate-600">
-          {position ? (
-            <span>
-              Selected location: <span className="font-semibold text-slate-900">{position.lat.toFixed(4)}, {position.lng.toFixed(4)}</span>
-            </span>
-          ) : (
-            <span>No location selected yet.</span>
+          {!readOnly && (
+            <button
+              type="button"
+              onClick={handleUseCurrent}
+              disabled={isLocating}
+              className="inline-flex items-center justify-center px-4 py-2 rounded-full border border-emerald-200 text-sm font-medium text-emerald-600 hover:bg-emerald-50 disabled:opacity-50 transition-colors"
+            >
+              {isLocating ? 'Locating…' : 'Use current location'}
+            </button>
           )}
         </div>
-        
-        {!readOnly && (
-          <button
-            type="button"
-            onClick={handleUseCurrent}
-            disabled={isLocating}
-            className="inline-flex items-center justify-center px-4 py-2 rounded-full border border-emerald-200 text-sm font-medium text-emerald-600 hover:bg-emerald-50 disabled:opacity-50 transition-colors"
+
+        {geoError && (
+          <div className="text-sm text-red-600 bg-red-50 rounded-lg p-3">
+            {geoError}
+          </div>
+        )}
+
+        <div className="rounded-2xl overflow-hidden border border-slate-200" style={{ height }}>
+          <Map
+            mapId={'DEMO_MAP_ID'} // You might want to create a real Map ID in Google Cloud Console
+            defaultCenter={DEFAULT_CENTER}
+            defaultZoom={8}
+            onClick={handleMapClick}
+            disableDefaultUI={false}
+            clickableIcons={false}
           >
-            {isLocating ? 'Locating…' : 'Use current location'}
-          </button>
+            <MapUpdater center={center} zoom={zoom} />
+
+            {position && (
+              <AdvancedMarker position={position} />
+            )}
+
+            {position && showRadius && radius && (
+              // Simple circle overlay using standard Google Maps Circle is not directly exported as a component in the advanced library yet in the same way,
+              // but we can use a custom component or just omit if not strictly critical. 
+              // For now we will focus on the marker. If Circle is needed, we'd wrap google.maps.Circle in a useEffect.
+              null
+            )}
+          </Map>
+        </div>
+
+        {!readOnly && (
+          <p className="text-xs text-slate-500">
+            Click on the map or search to set a location.
+          </p>
         )}
       </div>
-
-      {geoError && (
-        <div className="text-sm text-red-600 bg-red-50 rounded-lg p-3">
-          {geoError}
-        </div>
-      )}
-
-      <div className="overflow-hidden rounded-3xl border border-slate-200 shadow-sm">
-        <MapContainer
-          center={center}
-          zoom={position ? 13 : 8}
-          minZoom={7}
-          maxZoom={18}
-          maxBounds={SRI_LANKA_BOUNDS}
-          maxBoundsViscosity={1.0}
-          style={{ height }}
-          scrollWheelZoom={true}
-        >
-          <MapUpdater center={center} zoom={position ? 13 : 11} />
-          <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          />
-          
-          <LocationMarker 
-            position={position} 
-            onPositionChange={handlePositionChange}
-            readOnly={readOnly}
-          />
-          
-          {position && showRadius && radius && (
-            <Circle
-              center={[position.lat, position.lng] as LatLngExpression}
-              radius={Math.max(1000, radius * 1000)}
-              pathOptions={{
-                color: '#10b981',
-                fillColor: '#10b981',
-                fillOpacity: 0.1,
-                weight: 2,
-              }}
-            />
-          )}
-        </MapContainer>
-      </div>
-
-      {!readOnly && (
-        <p className="text-xs text-slate-500">
-          Click on the map or search to set a location.
-        </p>
-      )}
-    </div>
+    </APIProvider>
   );
 }

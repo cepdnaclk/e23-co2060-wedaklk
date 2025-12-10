@@ -21,11 +21,7 @@ export interface IUnverifiedUser extends Document {
     documentFrontUrl: string;
     documentBackUrl: string;
   };
-  paymentInfo?: {
-    cardNumber: string;
-    cardHolderName: string;
-    expiryDate: string;
-  };
+
   acceptedTerms: boolean;
   acceptedTermsDate: Date;
   isActive: boolean;
@@ -99,11 +95,7 @@ const UnverifiedUserSchema = new Schema<IUnverifiedUser>({
       required: true
     }
   },
-  paymentInfo: {
-    cardNumber: String,
-    cardHolderName: String,
-    expiryDate: String
-  },
+
   acceptedTerms: {
     type: Boolean,
     required: true,

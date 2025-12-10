@@ -5,9 +5,10 @@
 
 'use client';
 
-import React, { useState, ChangeEvent } from 'react';
+import React, { useState, ChangeEvent, useEffect, Suspense } from 'react';
 import { signIn } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { Eye, EyeOff, Upload, CheckCircle } from 'lucide-react';
 import Header from '@/components/Header';
 interface LoginData {
@@ -30,10 +31,6 @@ interface RegisterData {
   documentType: 'NIC' | 'Passport' | 'Driving License';
   documentFront: File | null;
   documentBack: File | null;
-  cardNumber: string;
-  cardHolderName: string;
-  expiryDate: string;
-  cvv: string;
   acceptTerms: boolean;
 }
 
@@ -75,73 +72,13 @@ interface FileUploadFieldProps {
   error?: string;
 }
 
-interface CardInputFieldProps {
-  label: string;
-  value: string;
-  onChange: (e: ChangeEvent<HTMLInputElement>) => void;
-  placeholder: string;
-}
 
-interface ExpiryDateInputFieldProps {
-  label: string;
-  value: string;
-  onChange: (e: ChangeEvent<HTMLInputElement>) => void;
-  placeholder: string;
-}
 
-// Utility functions for card validation
-const luhnCheck = (cardNumber: string): boolean => {
-  const cleaned = cardNumber.replace(/\s+/g, '');
-  if (!/^\d+$/.test(cleaned)) return false;
-  
-  let sum = 0;
-  let isEven = false;
-  
-  for (let i = cleaned.length - 1; i >= 0; i--) {
-    let digit = parseInt(cleaned[i]);
-    
-    if (isEven) {
-      digit *= 2;
-      if (digit > 9) {
-        digit -= 9;
-      }
-    }
-    
-    sum += digit;
-    isEven = !isEven;
-  }
-  
-  return sum % 10 === 0;
-};
 
-const getCardType = (cardNumber: string): 'visa' | 'mastercard' | 'discover' | null => {
-  const cleaned = cardNumber.replace(/\s+/g, '');
-  if (!cleaned) return null;
-  
-  const firstDigit = cleaned[0];
-  if (firstDigit === '4') return 'visa';
-  if (firstDigit === '5') return 'mastercard';
-  if (firstDigit === '6') return 'discover';
-  return null;
-};
-
-const formatCardNumber = (value: string): string => {
-  const cleaned = value.replace(/\s+/g, '');
-  const formatted = cleaned.match(/.{1,4}/g)?.join(' ') || cleaned;
-  return formatted.substring(0, 19); // Max 16 digits + 3 spaces
-};
-
-const formatExpiryDate = (value: string): string => {
-  const cleaned = value.replace(/\D/g, '');
-  if (cleaned.length >= 2) {
-    return cleaned.substring(0, 2) + '/' + cleaned.substring(2, 4);
-  }
-  return cleaned;
-};
 
 // Move components outside to prevent recreation on every render
 const InputField: React.FC<InputFieldProps> = ({ label, type = "text", value, onChange, placeholder, required, error }) => (
-  <div className="mb-4">
+  <div className="mb-4" suppressHydrationWarning>
     <label className="block text-gray-700 text-sm font-medium mb-2">
       {label} {required && <span className="text-red-500">*</span>}
     </label>
@@ -150,9 +87,8 @@ const InputField: React.FC<InputFieldProps> = ({ label, type = "text", value, on
       value={value}
       onChange={onChange}
       placeholder={placeholder}
-      className={`w-full px-4 py-3 bg-gray-100 border-none rounded-full focus:outline-none focus:ring-2 transition-all text-black placeholder:text-black placeholder:opacity-60 ${
-        error ? 'ring-2 ring-red-400' : 'focus:ring-green-400'
-      }`}
+      className={`w-full px-4 py-3 bg-gray-100 border-none rounded-full focus:outline-none focus:ring-2 transition-all text-black placeholder:text-black placeholder:opacity-60 ${error ? 'ring-2 ring-red-400' : 'focus:ring-green-400'
+        }`}
     />
     {error && <p className="text-red-500 text-xs mt-1 ml-4">{error}</p>}
   </div>
@@ -166,9 +102,8 @@ const SelectField: React.FC<SelectFieldProps> = ({ label, value, onChange, optio
     <select
       value={value}
       onChange={onChange}
-      className={`w-full px-4 py-3 bg-gray-100 border-none rounded-full focus:outline-none focus:ring-2 transition-all appearance-none text-black ${
-        error ? 'ring-2 ring-red-400' : 'focus:ring-green-400'
-      }`}
+      className={`w-full px-4 py-3 bg-gray-100 border-none rounded-full focus:outline-none focus:ring-2 transition-all appearance-none text-black ${error ? 'ring-2 ring-red-400' : 'focus:ring-green-400'
+        }`}
     >
       <option value="">Select {label}</option>
       {options.map(opt => (
@@ -190,9 +125,8 @@ const PasswordField: React.FC<PasswordFieldProps> = ({ label, value, onChange, p
         value={value}
         onChange={onChange}
         placeholder={placeholder}
-        className={`w-full px-4 py-3 bg-gray-100 border-none rounded-full focus:outline-none focus:ring-2 transition-all pr-12 text-black placeholder:text-black placeholder:opacity-60 ${
-          error ? 'ring-2 ring-red-400' : 'focus:ring-green-400'
-        }`}
+        className={`w-full px-4 py-3 bg-gray-100 border-none rounded-full focus:outline-none focus:ring-2 transition-all pr-12 text-black placeholder:text-black placeholder:opacity-60 ${error ? 'ring-2 ring-red-400' : 'focus:ring-green-400'
+          }`}
       />
       <button
         type="button"
@@ -221,9 +155,8 @@ const FileUploadField: React.FC<FileUploadFieldProps> = ({ label, onChange, file
       />
       <label
         htmlFor={label}
-        className={`w-full px-4 py-3 bg-gray-100 border-2 border-dashed rounded-2xl flex items-center justify-center cursor-pointer hover:border-green-400 transition-all ${
-          error ? 'border-red-400' : 'border-gray-300'
-        }`}
+        className={`w-full px-4 py-3 bg-gray-100 border-2 border-dashed rounded-2xl flex items-center justify-center cursor-pointer hover:border-green-400 transition-all ${error ? 'border-red-400' : 'border-gray-300'
+          }`}
       >
         <Upload size={20} className="mr-2 text-gray-500" />
         <span className="text-gray-600">{fileName || 'Upload File'}</span>
@@ -233,120 +166,39 @@ const FileUploadField: React.FC<FileUploadFieldProps> = ({ label, onChange, file
   </div>
 );
 
-const CardInputField: React.FC<CardInputFieldProps> = ({ label, value, onChange, placeholder }) => {
-  const cardType = getCardType(value);
-  const cleanedCardNumber = value.replace(/\s+/g, '');
-  const cardLength = cleanedCardNumber.length;
-  const isComplete = cardLength >= 13 && cardLength <= 16;
-  const isValid = isComplete && luhnCheck(value);
-  const showInvalid = isComplete && !isValid;
-  
-  const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const formatted = formatCardNumber(e.target.value);
-    const syntheticEvent = {
-      ...e,
-      target: { ...e.target, value: formatted }
-    } as ChangeEvent<HTMLInputElement>;
-    onChange(syntheticEvent);
-  };
-  
-  const getCardIcon = () => {
-    if (!cardType) return null;
-    
-    switch (cardType) {
-      case 'visa':
-        return (
-          <svg width="40" height="26" viewBox="0 0 40 26" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect width="40" height="26" rx="3" fill="#1434CB"/>
-            <path d="M16.2 18.5L18.1 8.5H20.5L18.6 18.5H16.2ZM28.5 8.7C28 8.5 27.2 8.3 26.2 8.3C23.8 8.3 22.1 9.5 22.1 11.3C22.1 12.6 23.3 13.3 24.2 13.7C25.2 14.1 25.5 14.4 25.5 14.8C25.5 15.4 24.7 15.7 24 15.7C22.9 15.7 22.3 15.5 21.5 15.2L21.1 15L20.7 17.4C21.3 17.7 22.4 17.9 23.6 17.9C26.2 17.9 27.8 16.7 27.8 14.8C27.8 13.8 27.1 13 25.6 12.4C24.7 12 24.3 11.7 24.3 11.3C24.3 10.9 24.8 10.5 25.8 10.5C26.6 10.5 27.2 10.6 27.7 10.9L28 11L28.5 8.7ZM32.8 8.5H30.9C30.3 8.5 29.8 8.7 29.6 9.3L26.4 18.5H29L29.6 16.9H32.7L33 18.5H35.3L33.3 8.5H32.8ZM30.3 14.8L31.5 11.2L32.2 14.8H30.3ZM13.5 8.5L11.2 15.3L11 14.2C10.5 12.6 9.1 10.9 7.5 10.1L9.6 18.5H12.2L16.1 8.5H13.5Z" fill="white"/>
-          </svg>
-        );
-      case 'mastercard':
-        return (
-          <svg width="40" height="26" viewBox="0 0 40 26" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect width="40" height="26" rx="3" fill="#EB001B"/>
-            <circle cx="15" cy="13" r="7" fill="#FF5F00"/>
-            <circle cx="25" cy="13" r="7" fill="#F79E1B"/>
-            <path d="M20 7.5C21.5 8.7 22.5 10.7 22.5 13C22.5 15.3 21.5 17.3 20 18.5C18.5 17.3 17.5 15.3 17.5 13C17.5 10.7 18.5 8.7 20 7.5Z" fill="#FF5F00"/>
-          </svg>
-        );
-      case 'discover':
-        return (
-          <svg width="40" height="26" viewBox="0 0 40 26" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect width="40" height="26" rx="3" fill="#FF6000"/>
-            <path d="M28 13C28 15.8 25.8 18 23 18C20.2 18 18 15.8 18 13C18 10.2 20.2 8 23 8C25.8 8 28 10.2 28 13Z" fill="white"/>
-            <path d="M8 11H10V15H8V11ZM11 10H13C14.1 10 15 10.9 15 12V14C15 15.1 14.1 16 13 16H11V10ZM12 11V15H13C13.6 15 14 14.6 14 14V12C14 11.4 13.6 11 13 11H12Z" fill="white"/>
-          </svg>
-        );
-      default:
-        return null;
-    }
-  };
-  
-  return (
-    <div className="mb-4">
-      <label className="block text-gray-700 text-sm font-medium mb-2">{label}</label>
-      <div className="relative">
-        <input
-          type="text"
-          value={value}
-          onChange={handleChange}
-          placeholder={placeholder}
-          maxLength={19}
-          className={`w-full px-4 py-3 bg-gray-100 border-none rounded-full focus:outline-none focus:ring-2 transition-all text-black placeholder:text-black placeholder:opacity-60 pr-24 ${
-            showInvalid ? 'focus:ring-red-400' : 'focus:ring-green-400'
-          }`}
-        />
-        <div className="absolute right-4 top-1/2 transform -translate-y-1/2 flex items-center gap-2">
-          {showInvalid && (
-            <span className="text-red-500 text-xs font-medium">Invalid</span>
-          )}
-          {getCardIcon()}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const ExpiryDateInputField: React.FC<ExpiryDateInputFieldProps> = ({ label, value, onChange, placeholder }) => {
-  const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const formatted = formatExpiryDate(e.target.value);
-    const syntheticEvent = {
-      ...e,
-      target: { ...e.target, value: formatted }
-    } as ChangeEvent<HTMLInputElement>;
-    onChange(syntheticEvent);
-  };
-  
-  return (
-    <div className="mb-4">
-      <label className="block text-gray-700 text-sm font-medium mb-2">{label}</label>
-      <input
-        type="text"
-        value={value}
-        onChange={handleChange}
-        placeholder={placeholder}
-        maxLength={5}
-        className="w-full px-4 py-3 bg-gray-100 border-none rounded-full focus:outline-none focus:ring-2 focus:ring-green-400 transition-all text-black placeholder:text-black placeholder:opacity-60"
-      />
-    </div>
-  );
-};
-
-export default function AuthPage() {
+// Main Content Component
+function AuthPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [isLogin, setIsLogin] = useState<boolean>(true);
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState<boolean>(false);
   const [currentStep, setCurrentStep] = useState<number>(1);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  
+
+  useEffect(() => {
+    const mode = searchParams.get('mode');
+    const step = searchParams.get('step');
+
+    if (mode === 'register') {
+      setIsLogin(false);
+      if (step) {
+        const stepNum = parseInt(step);
+        if (!isNaN(stepNum) && stepNum >= 1 && stepNum <= 3) {
+          setCurrentStep(stepNum);
+        }
+      }
+    } else {
+      setIsLogin(true);
+    }
+  }, [searchParams]);
+
   const [loginData, setLoginData] = useState<LoginData>({
     emailOrPhone: '',
     password: ''
   });
-  
+
   const [registerData, setRegisterData] = useState<RegisterData>({
     firstName: '',
     lastName: '',
@@ -362,15 +214,11 @@ export default function AuthPage() {
     documentType: 'NIC',
     documentFront: null,
     documentBack: null,
-    cardNumber: '',
-    cardHolderName: '',
-    expiryDate: '',
-    cvv: '',
     acceptTerms: false
   });
 
   const provinces: string[] = ['Western', 'Central', 'Southern', 'Northern', 'Eastern', 'North Western', 'North Central', 'Uva', 'Sabaragamuwa'];
-  const professions: string[] = ['Student','Engineer','Lawyer','Doctor', 'Teacher', 'Business Owner', 'Other'];
+  const professions: string[] = ['Student', 'Engineer', 'Lawyer', 'Doctor', 'Teacher', 'Business Owner', 'Other'];
 
   const validateStep = (step: number): boolean => {
     const newErrors: Record<string, string> = {};
@@ -438,7 +286,7 @@ export default function AuthPage() {
 
   const handleNext = (): void => {
     if (validateStep(currentStep)) {
-      if (currentStep < 4) {
+      if (currentStep < 3) {
         setCurrentStep(currentStep + 1);
         setErrors({});
       }
@@ -463,14 +311,14 @@ export default function AuthPage() {
 
   const handleRegister = async (): Promise<void> => {
     if (!registerData.acceptTerms) return;
-    
+
     setIsLoading(true);
     try {
       const formData = {
         ...registerData,
-        documentFront: registerData.documentFront ? 
+        documentFront: registerData.documentFront ?
           await fileToBase64(registerData.documentFront) : null,
-        documentBack: registerData.documentBack ? 
+        documentBack: registerData.documentBack ?
           await fileToBase64(registerData.documentBack) : null,
       };
 
@@ -507,27 +355,24 @@ export default function AuthPage() {
   const ProgressBar: React.FC = () => (
     <div className="w-full max-w-2xl mx-auto mb-8">
       <div className="flex justify-between items-center">
-        {[1, 2, 3, 4].map((step, index) => (
+        {[1, 2, 3].map((step, index) => (
           <React.Fragment key={step}>
             <div className="flex flex-col items-center">
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all ${
-                currentStep >= step 
-                  ? 'bg-green-500 text-white' 
-                  : 'bg-gray-200 text-gray-500'
-              }`}>
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all ${currentStep >= step
+                ? 'bg-green-500 text-white'
+                : 'bg-gray-200 text-gray-500'
+                }`}>
                 {currentStep > step ? <CheckCircle size={20} /> : step}
               </div>
               <span className="text-xs mt-2 text-gray-600">
                 {step === 1 && 'Personal Info'}
                 {step === 2 && 'KYC'}
-                {step === 3 && 'Payment'}
-                {step === 4 && 'Terms'}
+                {step === 3 && 'Terms'}
               </span>
             </div>
-            {index < 3 && (
-              <div className={`flex-1 h-1 mx-2 transition-all ${
-                currentStep > step ? 'bg-green-500' : 'bg-gray-200'
-              }`} />
+            {index < 2 && (
+              <div className={`flex-1 h-1 mx-2 transition-all ${currentStep > step ? 'bg-green-500' : 'bg-gray-200'
+                }`} />
             )}
           </React.Fragment>
         ))}
@@ -540,46 +385,46 @@ export default function AuthPage() {
       <div className="min-h-screen bg-gradient-to-br from-green-50 to-white flex flex-col p-4">
         <Header />
         <div className="flex-1 flex items-center justify-center">
-        <div className="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-md">
-          <h1 className="text-3xl font-bold text-center text-gray-800 mb-8">Welcome Back</h1>
-          
-          <div>
-            <InputField
-              label="Email or Phone"
-              type="text"
-              value={loginData.emailOrPhone}
-              onChange={(e) => setLoginData({...loginData, emailOrPhone: e.target.value})}
-              placeholder="Enter your Email or Phone"
-            />
-            
-            <PasswordField
-              label="Password"
-              value={loginData.password}
-              onChange={(e) => setLoginData({...loginData, password: e.target.value})}
-              placeholder="Enter your Password"
-              show={showPassword}
-              toggleShow={() => setShowPassword(!showPassword)}
-            />
-            
-            <button
-              onClick={handleLogin}
-              disabled={isLoading}
-              className="w-full bg-green-500 hover:bg-green-600 text-white font-semibold py-3 rounded-full transition-all shadow-lg hover:shadow-xl mt-6 disabled:opacity-50"
-            >
-              {isLoading ? 'Logging in...' : 'Login'}
-            </button>
+          <div className="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-md">
+            <h1 className="text-3xl font-bold text-center text-gray-800 mb-8">Welcome Back</h1>
+
+            <div>
+              <InputField
+                label="Email or Phone"
+                type="text"
+                value={loginData.emailOrPhone}
+                onChange={(e) => setLoginData({ ...loginData, emailOrPhone: e.target.value })}
+                placeholder="Enter your Email or Phone"
+              />
+
+              <PasswordField
+                label="Password"
+                value={loginData.password}
+                onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
+                placeholder="Enter your Password"
+                show={showPassword}
+                toggleShow={() => setShowPassword(!showPassword)}
+              />
+
+              <button
+                onClick={handleLogin}
+                disabled={isLoading}
+                className="w-full bg-green-500 hover:bg-green-600 text-white font-semibold py-3 rounded-full transition-all shadow-lg hover:shadow-xl mt-6 disabled:opacity-50"
+              >
+                {isLoading ? 'Logging in...' : 'Login'}
+              </button>
+            </div>
+
+            <div className="text-center mt-6">
+              <span className="text-gray-600">Don't have an account? </span>
+              <button
+                onClick={() => setIsLogin(false)}
+                className="text-green-500 font-semibold hover:text-green-600 transition-all"
+              >
+                Register
+              </button>
+            </div>
           </div>
-          
-          <div className="text-center mt-6">
-            <span className="text-gray-600">Don't have an account? </span>
-            <button
-              onClick={() => setIsLogin(false)}
-              className="text-green-500 font-semibold hover:text-green-600 transition-all"
-            >
-              Register
-            </button>
-          </div>
-        </div>
         </div>
       </div>
     );
@@ -587,13 +432,13 @@ export default function AuthPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-white py-8 px-4">
-      <Header /> 
+      <Header />
       <div className="max-w-4xl mx-auto mt-8">
         <div className="bg-white rounded-3xl shadow-2xl p-8">
           <h1 className="text-3xl font-bold text-center text-gray-800 mb-8">Create Your Account</h1>
-          
+
           <ProgressBar />
-          
+
           <div>
             {currentStep === 1 && (
               <div className="space-y-2">
@@ -601,7 +446,7 @@ export default function AuthPage() {
                   <InputField
                     label="First Name"
                     value={registerData.firstName}
-                    onChange={(e) => setRegisterData({...registerData, firstName: e.target.value})}
+                    onChange={(e) => setRegisterData({ ...registerData, firstName: e.target.value })}
                     placeholder="Enter your First Name"
                     required
                     error={errors.firstName}
@@ -609,47 +454,47 @@ export default function AuthPage() {
                   <InputField
                     label="Last Name"
                     value={registerData.lastName}
-                    onChange={(e) => setRegisterData({...registerData, lastName: e.target.value})}
+                    onChange={(e) => setRegisterData({ ...registerData, lastName: e.target.value })}
                     placeholder="Enter your Last Name"
                     required
                     error={errors.lastName}
                   />
                 </div>
-                
+
                 <InputField
                   label="Email"
                   type="email"
                   value={registerData.email}
-                  onChange={(e) => setRegisterData({...registerData, email: e.target.value})}
+                  onChange={(e) => setRegisterData({ ...registerData, email: e.target.value })}
                   placeholder="Enter your Email"
                   required
                   error={errors.email}
                 />
-                
+
                 <InputField
                   label="Mobile Phone"
                   type="tel"
                   value={registerData.mobilePhone}
-                  onChange={(e) => setRegisterData({...registerData, mobilePhone: e.target.value})}
+                  onChange={(e) => setRegisterData({ ...registerData, mobilePhone: e.target.value })}
                   placeholder="Enter your Mobile Phone"
                   required
                   error={errors.mobilePhone}
                 />
-                
+
                 <SelectField
                   label="Profession"
                   value={registerData.profession}
-                  onChange={(e) => setRegisterData({...registerData, profession: e.target.value})}
+                  onChange={(e) => setRegisterData({ ...registerData, profession: e.target.value })}
                   options={professions}
                   required
                   error={errors.profession}
                 />
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <SelectField
                     label="Province"
                     value={registerData.province}
-                    onChange={(e) => setRegisterData({...registerData, province: e.target.value})}
+                    onChange={(e) => setRegisterData({ ...registerData, province: e.target.value })}
                     options={provinces}
                     required
                     error={errors.province}
@@ -657,37 +502,37 @@ export default function AuthPage() {
                   <InputField
                     label="District"
                     value={registerData.district}
-                    onChange={(e) => setRegisterData({...registerData, district: e.target.value})}
+                    onChange={(e) => setRegisterData({ ...registerData, district: e.target.value })}
                     placeholder="Enter your District"
                     required
                     error={errors.district}
                   />
                 </div>
-                
+
                 <InputField
                   label="Address"
                   value={registerData.address}
-                  onChange={(e) => setRegisterData({...registerData, address: e.target.value})}
+                  onChange={(e) => setRegisterData({ ...registerData, address: e.target.value })}
                   placeholder="Enter your Address"
                   required
                   error={errors.address}
                 />
-                
+
                 <PasswordField
                   label="Password"
                   value={registerData.password}
-                  onChange={(e) => setRegisterData({...registerData, password: e.target.value})}
+                  onChange={(e) => setRegisterData({ ...registerData, password: e.target.value })}
                   placeholder="Enter your Password"
                   show={showPassword}
                   toggleShow={() => setShowPassword(!showPassword)}
                   required
                   error={errors.password}
                 />
-                
+
                 <PasswordField
                   label="Confirm Password"
                   value={registerData.confirmPassword}
-                  onChange={(e) => setRegisterData({...registerData, confirmPassword: e.target.value})}
+                  onChange={(e) => setRegisterData({ ...registerData, confirmPassword: e.target.value })}
                   placeholder="Confirm your Password"
                   show={showConfirmPassword}
                   toggleShow={() => setShowConfirmPassword(!showConfirmPassword)}
@@ -722,7 +567,7 @@ export default function AuthPage() {
                           name="documentType"
                           value={type}
                           checked={registerData.documentType === type}
-                          onChange={(e) => setRegisterData({...registerData, documentType: e.target.value as 'NIC' | 'Passport' | 'Driving License'})}
+                          onChange={(e) => setRegisterData({ ...registerData, documentType: e.target.value as 'NIC' | 'Passport' | 'Driving License' })}
                           className="mr-2 accent-green-500"
                         />
                         <span className="text-gray-700">{type}</span>
@@ -730,7 +575,7 @@ export default function AuthPage() {
                     ))}
                   </div>
                 </div>
-                
+
                 <FileUploadField
                   label="Upload Front Side"
                   onChange={(e) => handleFileUpload('documentFront', e.target.files?.[0] || null)}
@@ -738,7 +583,7 @@ export default function AuthPage() {
                   required
                   error={errors.documentFront}
                 />
-                
+
                 <FileUploadField
                   label="Upload Back Side"
                   onChange={(e) => handleFileUpload('documentBack', e.target.files?.[0] || null)}
@@ -750,70 +595,40 @@ export default function AuthPage() {
             )}
 
             {currentStep === 3 && (
-              <div className="space-y-2">
-                <h2 className="text-2xl font-semibold text-gray-800 mb-4">Payment Information</h2>
-                <p className="text-gray-600 text-sm mb-4">This step is optional and can be skipped</p>
-                
-                <CardInputField
-                  label="Card Number"
-                  value={registerData.cardNumber}
-                  onChange={(e) => setRegisterData({...registerData, cardNumber: e.target.value})}
-                  placeholder="1234 5678 9012 3456"
-                />
-                
-                <InputField
-                  label="Card Holder Name"
-                  value={registerData.cardHolderName}
-                  onChange={(e) => setRegisterData({...registerData, cardHolderName: e.target.value})}
-                  placeholder="Enter Card Holder Name"
-                />
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <ExpiryDateInputField
-                    label="Expiry Date"
-                    value={registerData.expiryDate}
-                    onChange={(e) => setRegisterData({...registerData, expiryDate: e.target.value})}
-                    placeholder="MM/YY"
-                  />
-                  <InputField
-                    label="CVV"
-                    type="password"
-                    value={registerData.cvv}
-                    onChange={(e) => setRegisterData({...registerData, cvv: e.target.value.replace(/\D/g, '').substring(0, 4)})}
-                    placeholder="123"
-                  />
+              <div className="space-y-6 text-center py-8">
+                <div className="bg-gray-50 rounded-2xl p-8 border border-gray-200">
+                  <h2 className="text-2xl font-semibold text-gray-800 mb-4">Terms & Conditions</h2>
+                  <p className="text-gray-600 mb-6">
+                    Please read and accept our terms and conditions to complete your registration.
+                  </p>
+
+                  <Link
+                    href="/terms"
+                    target="_blank"
+                    className="inline-flex items-center justify-center px-6 py-3 border border-green-500 text-green-600 font-semibold rounded-full hover:bg-green-50 transition-colors mb-6"
+                  >
+                    Read Terms & Conditions
+                  </Link>
+
+                  <div className="flex items-center justify-center gap-3">
+                    <label className="flex items-center cursor-pointer gap-3 select-none">
+                      <div className="relative flex items-center">
+                        <input
+                          type="checkbox"
+                          checked={registerData.acceptTerms}
+                          onChange={(e) => setRegisterData({ ...registerData, acceptTerms: e.target.checked })}
+                          className="peer w-6 h-6 border-2 border-gray-300 rounded focus:ring-green-500 text-green-600 transition-all checked:border-green-500 checked:bg-green-500"
+                        />
+                        <CheckCircle size={16} className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white opacity-0 peer-checked:opacity-100 pointer-events-none transition-opacity" />
+                      </div>
+                      <span className="text-gray-700 font-medium">I agree to the Terms & Conditions</span>
+                    </label>
+                  </div>
                 </div>
               </div>
             )}
 
-            {currentStep === 4 && (
-              <div className="space-y-4">
-                <h2 className="text-2xl font-semibold text-gray-800 mb-4">Terms & Conditions</h2>
-                
-                <div className="bg-gray-50 rounded-2xl p-6 max-h-64 overflow-y-auto border border-gray-200">
-                  <h3 className="font-semibold mb-2">Terms of Service</h3>
-                  <p className="text-sm text-gray-700 mb-4">
-                    Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
-                  </p>
-                  <h3 className="font-semibold mb-2">Privacy Policy</h3>
-                  <p className="text-sm text-gray-700 mb-4">
-                    Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.
-                  </p>
-                </div>
-                
-                <label className="flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={registerData.acceptTerms}
-                    onChange={(e) => setRegisterData({...registerData, acceptTerms: e.target.checked})}
-                    className="w-5 h-5 accent-green-500 mr-3"
-                  />
-                  <span className="text-gray-700">I agree to the Terms & Conditions and Privacy Policy</span>
-                </label>
-              </div>
-            )}
-
-            <div className={`flex gap-4 mt-8 ${currentStep === 3 ? 'items-start' : ''}`}>
+            <div className="flex gap-4 mt-8">
               {currentStep > 1 && (
                 <button
                   onClick={handlePrevious}
@@ -823,31 +638,14 @@ export default function AuthPage() {
                   Previous
                 </button>
               )}
-              
-              {currentStep < 4 ? (
-                currentStep === 3 ? (
-                  <>
-                    <button
-                      onClick={handleNext}
-                      className="flex-1 bg-gray-200 hover:bg-gray-300 text-black font-semibold py-3 rounded-full transition-all"
-                    >
-                      Skip
-                    </button>
-                    <button
-                      onClick={handleNext}
-                      className="flex-1 bg-green-500 hover:bg-green-600 text-black font-semibold py-3 rounded-full transition-all shadow-lg hover:shadow-xl"
-                    >
-                      Next
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    onClick={handleNext}
-                    className="flex-1 bg-green-500 hover:bg-green-600 text-white font-semibold py-3 rounded-full transition-all shadow-lg hover:shadow-xl"
-                  >
-                    Next
-                  </button>
-                )
+
+              {currentStep < 3 ? (
+                <button
+                  onClick={handleNext}
+                  className="flex-1 bg-green-500 hover:bg-green-600 text-white font-semibold py-3 rounded-full transition-all shadow-lg hover:shadow-xl"
+                >
+                  Next
+                </button>
               ) : (
                 <button
                   onClick={handleRegister}
@@ -859,7 +657,7 @@ export default function AuthPage() {
               )}
             </div>
           </div>
-          
+
           <div className="text-center mt-6">
             <span className="text-gray-600">Already have an account? </span>
             <button
@@ -875,5 +673,13 @@ export default function AuthPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function AuthPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <AuthPageContent />
+    </Suspense>
   );
 }

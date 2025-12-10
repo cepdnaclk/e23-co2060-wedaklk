@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, Suspense } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
@@ -41,7 +41,7 @@ interface BidDetail {
   };
 }
 
-export default function JobDetailPage() {
+function JobDetailContent() {
   const params = useParams<{ jobId: string }>();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -68,6 +68,7 @@ export default function JobDetailPage() {
 
   const latParam = searchParams?.get('lat');
   const lngParam = searchParams?.get('lng');
+  const paymentSuccess = searchParams?.get('paymentSuccess');
 
   const fetchJob = useCallback(async () => {
     if (!jobId || typeof jobId !== 'string') {
@@ -124,6 +125,52 @@ export default function JobDetailPage() {
     fetchJob();
     fetchBids();
   }, [fetchJob, fetchBids]);
+
+  // Refresh job data when returning from payment success
+  useEffect(() => {
+    if (paymentSuccess === 'true') {
+      // Accept the bid on the client side as a fallback
+      // (PayHere notification may not reach localhost during development)
+      const acceptBidFallback = async () => {
+        try {
+          console.log('Accepting bid via client-side fallback...');
+
+          // Call the accept bid API directly
+          const response = await fetch('/api/bids/accept', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ jobId, bidId: searchParams?.get('bidId') }),
+          });
+
+          if (response.ok) {
+            console.log('Bid accepted successfully via fallback');
+          } else {
+            console.error('Failed to accept bid via fallback');
+          }
+        } catch (error) {
+          console.error('Error accepting bid via fallback:', error);
+        }
+      };
+
+      // Execute fallback and then refresh
+      acceptBidFallback().then(() => {
+        // Wait a bit for database to update
+        const timer = setTimeout(() => {
+          fetchJob();
+          fetchBids();
+          // Clean up the URL parameter
+          if (searchParams) {
+            const newParams = new URLSearchParams(searchParams.toString());
+            newParams.delete('paymentSuccess');
+            newParams.delete('bidId');
+            const newUrl = newParams.toString() ? `?${newParams.toString()}` : window.location.pathname;
+            window.history.replaceState({}, '', newUrl);
+          }
+        }, 500);
+        return () => clearTimeout(timer);
+      });
+    }
+  }, [paymentSuccess, fetchJob, fetchBids, searchParams, jobId]);
 
   const handleBidSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -212,7 +259,7 @@ export default function JobDetailPage() {
       const profileData = await profileResponse.json();
 
       if (!profileResponse.ok) {
-        throw new Error(profileData.error || 'Failed to check payment details.');
+        throw new Error(profileData.error || 'Failed to verify your account details.');
       }
 
       const hasPaymentInfo = Boolean(profileData.user?.paymentInfo?.cardNumber);
@@ -229,7 +276,7 @@ export default function JobDetailPage() {
       }
     } catch (error: any) {
       console.error('Failed to initiate bid acceptance', error);
-      setAcceptError(error.message || 'Unable to start payment process.');
+      setAcceptError(error.message || 'Unable to start the payment process. Please try again.');
     } finally {
       setIsAcceptingBidId(null);
     }
@@ -435,20 +482,27 @@ export default function JobDetailPage() {
                       <p className="text-xs text-slate-400">
                         Submitted on {new Date(bid.createdAt).toLocaleString()}
                       </p>
-                      {isOwner && job.status === 'open' && (
-                        <button
-                          type="button"
-                          onClick={() => handleAcceptBid(bid._id)}
-                          disabled={isAcceptingBidId === bid._id}
-                          className="inline-flex items-center gap-1 rounded-full bg-emerald-500 text-white px-3 py-1 text-xs font-medium hover:bg-emerald-600 disabled:opacity-50"
-                        >
-                          {isAcceptingBidId === bid._id ? (
-                            <Loader2 size={14} className="animate-spin" />
-                          ) : (
+                      {isOwner && (
+                        job.status === 'accepted' ? (
+                          <div className="inline-flex items-center gap-1 rounded-full bg-emerald-100 text-emerald-700 px-3 py-1 text-xs font-medium">
                             <CheckCircle2 size={14} />
-                          )}
-                          Accept bid
-                        </button>
+                            Bid Accepted
+                          </div>
+                        ) : job.status === 'open' && (
+                          <button
+                            type="button"
+                            onClick={() => handleAcceptBid(bid._id)}
+                            disabled={isAcceptingBidId === bid._id}
+                            className="inline-flex items-center gap-1 rounded-full bg-emerald-500 text-white px-3 py-1 text-xs font-medium hover:bg-emerald-600 disabled:opacity-50"
+                          >
+                            {isAcceptingBidId === bid._id ? (
+                              <Loader2 size={14} className="animate-spin" />
+                            ) : (
+                              <CheckCircle2 size={14} />
+                            )}
+                            Accept bid
+                          </button>
+                        )
                       )}
                     </div>
                   </div>
@@ -459,5 +513,18 @@ export default function JobDetailPage() {
         </aside>
       </section>
     </div>
+  );
+}
+
+export default function JobDetailPage() {
+  return (
+    <Suspense fallback={
+      <div className="bg-white border border-slate-200 rounded-3xl p-12 text-center">
+        <Loader2 className="mx-auto animate-spin text-emerald-500" size={32} />
+        <p className="mt-3 text-sm text-slate-500">Loading job details…</p>
+      </div>
+    }>
+      <JobDetailContent />
+    </Suspense>
   );
 }

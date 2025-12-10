@@ -24,9 +24,6 @@ interface RegisterRequestBody {
   documentType: 'NIC' | 'Passport' | 'Driving License';
   documentFront: string | null;
   documentBack: string | null;
-  cardNumber?: string;
-  cardHolderName?: string;
-  expiryDate?: string;
   acceptTerms: boolean;
 }
 
@@ -48,9 +45,6 @@ export async function POST(req: NextRequest) {
       documentType,
       documentFront,
       documentBack,
-      cardNumber,
-      cardHolderName,
-      expiryDate,
       acceptTerms
     } = body;
 
@@ -115,12 +109,12 @@ export async function POST(req: NextRequest) {
     await connectDB();
 
     // Check if user exists in either collection
-    const existingUnverifiedUser = await UnverifiedUser.findOne({ 
-      $or: [{ email }, { mobilePhone }, { nicNumber }] 
+    const existingUnverifiedUser = await UnverifiedUser.findOne({
+      $or: [{ email }, { mobilePhone }, { nicNumber }]
     });
 
-    const existingVerifiedUser = await VerifiedUser.findOne({ 
-      $or: [{ email }, { mobilePhone }, { nicNumber }] 
+    const existingVerifiedUser = await VerifiedUser.findOne({
+      $or: [{ email }, { mobilePhone }, { nicNumber }]
     });
 
     if (existingUnverifiedUser || existingVerifiedUser) {
@@ -153,11 +147,7 @@ export async function POST(req: NextRequest) {
         documentFrontUrl,
         documentBackUrl
       },
-      paymentInfo: cardNumber ? {
-        cardNumber: cardNumber.slice(-4),
-        cardHolderName,
-        expiryDate
-      } : undefined,
+
       acceptedTerms: acceptTerms,
       acceptedTermsDate: new Date(),
       isActive: true,
@@ -175,9 +165,9 @@ export async function POST(req: NextRequest) {
     };
 
     return NextResponse.json(
-      { 
+      {
         message: 'User registered successfully',
-        user: userResponse 
+        user: userResponse
       },
       { status: 201 }
     );

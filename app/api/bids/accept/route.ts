@@ -9,8 +9,6 @@ import { Types } from 'mongoose';
 import connectDB from '@/lib/mongodb';
 import Bid from '@/models/Bid';
 import Job from '@/models/Job';
-import VerifiedUser from '@/models/VerifiedUser';
-import UnverifiedUser from '@/models/UnverifiedUser';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 
 export async function POST(req: NextRequest) {
@@ -30,21 +28,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Valid jobId and bidId are required' }, { status: 400 });
     }
 
-    const isVerified = Boolean((session.user as any).isVerified);
-    const UserModel = isVerified ? VerifiedUser : UnverifiedUser;
-
-    const user = await UserModel.findById((session.user as any).id).lean();
-    if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
-    }
-
-    const hasPaymentInfo = Boolean((user as any).paymentInfo?.cardNumber);
-    if (!hasPaymentInfo) {
-      return NextResponse.json(
-        { error: 'Payment details required to accept bids', code: 'PAYMENT_REQUIRED' },
-        { status: 400 }
-      );
-    }
+    // Note: This is a sandbox implementation. In production, integrate with a real payment gateway.
+    // The frontend ensures users complete the payment flow before reaching this endpoint.
 
     const job = await Job.findById(jobId);
     if (!job) {

@@ -23,11 +23,7 @@ export interface IVerifiedUser extends Document {
     verified: boolean;
     verifiedAt: Date;
   };
-  paymentInfo?: {
-    cardNumber: string;
-    cardHolderName: string;
-    expiryDate: string;
-  };
+
   acceptedTerms: boolean;
   acceptedTermsDate: Date;
   isActive: boolean;
@@ -109,11 +105,7 @@ const VerifiedUserSchema = new Schema<IVerifiedUser>({
       default: Date.now
     }
   },
-  paymentInfo: {
-    cardNumber: String,
-    cardHolderName: String,
-    expiryDate: String
-  },
+
   acceptedTerms: {
     type: Boolean,
     required: true,
