@@ -1,8 +1,8 @@
 'use client';
-import { useEffect } from 'react';
+import { useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import '../../styles/payment-pages.css';
-export default function PaymentCancel() {
+function PaymentCancelContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -18,6 +18,7 @@ export default function PaymentCancel() {
       container.classList.add('fade-in');
     }
   }, []);
+
   return (
     <div className="payment-container cancel">
       <div className="payment-card">
@@ -77,5 +78,13 @@ export default function PaymentCancel() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function PaymentCancel() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <PaymentCancelContent />
+    </Suspense>
   );
 }
