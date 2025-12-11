@@ -6,7 +6,7 @@
 'use client';
 
 import React, { useState, ChangeEvent, useEffect, Suspense } from 'react';
-import { signIn } from 'next-auth/react';
+import { signIn, useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Eye, EyeOff, Upload, CheckCircle } from 'lucide-react';
@@ -170,12 +170,20 @@ const FileUploadField: React.FC<FileUploadFieldProps> = ({ label, onChange, file
 function AuthPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { data: session, status } = useSession(); // Get session status
   const [isLogin, setIsLogin] = useState<boolean>(true);
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState<boolean>(false);
   const [currentStep, setCurrentStep] = useState<number>(1);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    // Redirect if already authenticated
+    if (status === 'authenticated') {
+      router.push('/dashboard');
+    }
+  }, [status, router]);
 
   useEffect(() => {
     const mode = searchParams.get('mode');

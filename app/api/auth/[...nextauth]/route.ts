@@ -73,7 +73,7 @@ export const authOptions: NextAuthOptions = {
       }
     })
   ],
-  
+
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
@@ -87,7 +87,7 @@ export const authOptions: NextAuthOptions = {
       }
       return token;
     },
-    
+
     async session({ session, token }) {
       if (token && session.user) {
         (session.user as any).id = token.id;
@@ -101,17 +101,17 @@ export const authOptions: NextAuthOptions = {
       return session;
     }
   },
-  
+
   pages: {
     signIn: '/auth',
     error: '/auth',
   },
-  
+
   session: {
     strategy: 'jwt',
-    maxAge: 30 * 24 * 60 * 60,
+    maxAge: 60 * 60, //1 hour validity
   },
-  
+
   secret: process.env.NEXTAUTH_SECRET,
 };
 
