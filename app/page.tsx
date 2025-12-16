@@ -178,6 +178,23 @@ function AuthPageContent() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // OTP State
+  const [isPhoneVerified, setIsPhoneVerified] = useState<boolean>(false);
+  const [otpSent, setOtpSent] = useState<boolean>(false);
+  const [otpInput, setOtpInput] = useState<string>('');
+  const [otpTimer, setOtpTimer] = useState<number>(0);
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState<boolean>(false);
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (otpTimer > 0) {
+      interval = setInterval(() => {
+        setOtpTimer((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [otpTimer]);
+
   useEffect(() => {
     // Redirect if already authenticated
     if (status === 'authenticated') {
@@ -239,7 +256,11 @@ function AuthPageContent() {
       } else if (!/\S+@\S+\.\S+/.test(registerData.email)) {
         newErrors.email = 'Email is invalid';
       }
-      if (!registerData.mobilePhone.trim()) newErrors.mobilePhone = 'Mobile phone is required';
+      if (!registerData.mobilePhone.trim()) {
+        newErrors.mobilePhone = 'Mobile phone is required';
+      } else if (!isPhoneVerified) {
+        newErrors.mobilePhone = 'Please verify your phone number';
+      }
       if (!registerData.profession) newErrors.profession = 'Profession is required';
       if (!registerData.province) newErrors.province = 'Province is required';
       if (!registerData.district.trim()) newErrors.district = 'District is required';
@@ -269,6 +290,67 @@ function AuthPageContent() {
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
+
+  const handleSendOtp = async () => {
+    if (!registerData.mobilePhone.trim()) {
+      setErrors({ ...errors, mobilePhone: 'Enter a valid phone number first' });
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/otp/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mobilePhone: registerData.mobilePhone })
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        setOtpSent(true);
+        setOtpTimer(60); // 60s cooldown
+        alert('OTP sent successfully!');
+      } else {
+        alert(data.error || 'Failed to send OTP');
+      }
+    } catch (error) {
+      console.error('OTP Send Error:', error);
+      alert('Failed to send OTP');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (!otpInput) {
+      alert('Please enter OTP');
+      return;
+    }
+    setIsVerifyingOtp(true);
+    try {
+      const response = await fetch('/api/otp/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mobilePhone: registerData.mobilePhone, otp: otpInput })
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        setIsPhoneVerified(true);
+        setOtpSent(false); // Hide OTP field
+        setErrors({ ...errors, mobilePhone: '' }); // Clear error
+        alert('Phone number verified successfully!');
+      } else {
+        alert(data.error || 'Invalid OTP');
+      }
+    } catch (error) {
+      console.error('Verification Error:', error);
+      alert('Verification failed');
+    } finally {
+      setIsVerifyingOtp(false);
+    }
+  };
+
 
   const handleLogin = async (): Promise<void> => {
     setIsLoading(true);
@@ -479,15 +561,76 @@ function AuthPageContent() {
                   error={errors.email}
                 />
 
-                <InputField
-                  label="Mobile Phone"
-                  type="tel"
-                  value={registerData.mobilePhone}
-                  onChange={(e) => setRegisterData({ ...registerData, mobilePhone: e.target.value })}
-                  placeholder="Enter your Mobile Phone"
-                  required
-                  error={errors.mobilePhone}
-                />
+                <div className="bg-gray-50 p-4 rounded-2xl mb-4 border border-gray-100">
+                  <label className="block text-gray-700 text-sm font-medium mb-2">
+                    Mobile Phone <span className="text-red-500">*</span>
+                  </label>
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <input
+                        type="tel"
+                        value={registerData.mobilePhone}
+                        onChange={(e) => {
+                          if (!isPhoneVerified) {
+                            setRegisterData({ ...registerData, mobilePhone: e.target.value });
+                          }
+                        }}
+                        disabled={isPhoneVerified}
+                        placeholder="Enter 10 digit Mobile Phone (e.g. 0712345678)"
+                        className={`w-full px-4 py-3 bg-gray-100 border-none rounded-full focus:outline-none focus:ring-2 transition-all text-black placeholder:text-black placeholder:opacity-60 ${errors.mobilePhone ? 'ring-2 ring-red-400' : isPhoneVerified ? 'ring-2 ring-green-500 bg-green-50' : 'focus:ring-green-400'
+                          }`}
+                      />
+                    </div>
+
+                    {!isPhoneVerified && registerData.mobilePhone.length >= 10 && !otpSent && (
+                      <button
+                        onClick={handleSendOtp}
+                        disabled={isLoading || otpTimer > 0}
+                        className="px-6 py-2 bg-green-500 text-white rounded-full font-semibold hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all whitespace-nowrap shadow-sm"
+                      >
+                        {isLoading ? 'Sending...' : otpTimer > 0 ? `Wait ${otpTimer}s` : 'Verify'}
+                      </button>
+                    )}
+
+                    {isPhoneVerified && (
+                      <div className="flex items-center justify-center w-12 h-12 bg-green-100 rounded-full text-green-600">
+                        <CheckCircle size={24} />
+                      </div>
+                    )}
+                  </div>
+                  {errors.mobilePhone && <p className="text-red-500 text-xs mt-1 ml-4">{errors.mobilePhone}</p>}
+
+                  {otpSent && !isPhoneVerified && (
+                    <div className="mt-4 flex gap-2 items-center animate-in fade-in slide-in-from-top-2">
+                      <input
+                        type="text"
+                        value={otpInput}
+                        onChange={(e) => setOtpInput(e.target.value)}
+                        placeholder="Enter 6-digit OTP"
+                        maxLength={6}
+                        className="flex-1 px-4 py-3 bg-white border border-green-200 rounded-full focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-transparent text-center tracking-widest font-mono text-lg"
+                      />
+                      <button
+                        onClick={handleVerifyOtp}
+                        disabled={isVerifyingOtp}
+                        className="px-6 py-3 bg-green-600 text-white rounded-full font-semibold hover:bg-green-700 transition-all shadow-md"
+                      >
+                        {isVerifyingOtp ? 'Checking...' : 'Submit'}
+                      </button>
+                    </div>
+                  )}
+                  {otpSent && !isPhoneVerified && (
+                    <div className="mt-2 text-center">
+                      <button
+                        onClick={handleSendOtp}
+                        disabled={otpTimer > 0 || isLoading}
+                        className="text-xs text-green-600 hover:underline disabled:text-gray-400 disabled:no-underline"
+                      >
+                        {otpTimer > 0 ? `Resend code in ${otpTimer}s` : 'Resend Code'}
+                      </button>
+                    </div>
+                  )}
+                </div>
 
                 <SelectField
                   label="Profession"
