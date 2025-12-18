@@ -5,7 +5,7 @@
 
 'use client';
 
-import React, { useState, ChangeEvent, useEffect, Suspense } from 'react';
+import React, { useState, ChangeEvent, useEffect, Suspense, useRef } from 'react';
 import { signIn, useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -576,7 +576,7 @@ function AuthPageContent() {
                           }
                         }}
                         disabled={isPhoneVerified}
-                        placeholder="Enter 10 digit Mobile Phone (e.g. 0712345678)"
+                        placeholder="Enter Mobile Phone number (e.g. 0712345678)"
                         className={`w-full px-4 py-3 bg-gray-100 border-none rounded-full focus:outline-none focus:ring-2 transition-all text-black placeholder:text-black placeholder:opacity-60 ${errors.mobilePhone ? 'ring-2 ring-red-400' : isPhoneVerified ? 'ring-2 ring-green-500 bg-green-50' : 'focus:ring-green-400'
                           }`}
                       />
@@ -601,22 +601,60 @@ function AuthPageContent() {
                   {errors.mobilePhone && <p className="text-red-500 text-xs mt-1 ml-4">{errors.mobilePhone}</p>}
 
                   {otpSent && !isPhoneVerified && (
-                    <div className="mt-4 flex gap-2 items-center animate-in fade-in slide-in-from-top-2">
-                      <input
-                        type="text"
-                        value={otpInput}
-                        onChange={(e) => setOtpInput(e.target.value)}
-                        placeholder="Enter 6-digit OTP"
-                        maxLength={6}
-                        className="flex-1 px-4 py-3 bg-white border border-green-200 rounded-full focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-transparent text-center tracking-widest font-mono text-lg"
-                      />
-                      <button
-                        onClick={handleVerifyOtp}
-                        disabled={isVerifyingOtp}
-                        className="px-6 py-3 bg-green-600 text-white rounded-full font-semibold hover:bg-green-700 transition-all shadow-md"
-                      >
-                        {isVerifyingOtp ? 'Checking...' : 'Submit'}
-                      </button>
+                    <div className="mt-4 animate-in fade-in slide-in-from-top-2">
+                      <p className="text-black font-medium mb-2 text-center">Enter Verification Code</p>
+                      <div className="flex gap-2 justify-center mb-4">
+                        {[0, 1, 2, 3, 4, 5].map((index) => (
+                          <input
+                            key={index}
+                            id={`otp-${index}`}
+                            type="text"
+                            maxLength={1}
+                            value={otpInput[index] || ''}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              if (!/^\d*$/.test(value)) return;
+
+                              const newOtp = otpInput.split('');
+                              while (newOtp.length < 6) newOtp.push(''); // Ensure length
+                              newOtp[index] = value;
+                              const newOtpStr = newOtp.join('').substring(0, 6);
+                              setOtpInput(newOtpStr);
+
+                              if (value && index < 5) {
+                                const nextInput = document.getElementById(`otp-${index + 1}`);
+                                nextInput?.focus();
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Backspace' && !otpInput[index] && index > 0) {
+                                const prevInput = document.getElementById(`otp-${index - 1}`);
+                                prevInput?.focus();
+                              }
+                            }}
+                            onPaste={(e) => {
+                              e.preventDefault();
+                              const pastedData = e.clipboardData.getData('text').slice(0, 6).replace(/\D/g, '');
+                              if (pastedData) {
+                                setOtpInput(pastedData);
+                                // Focus last filled
+                                const targetIndex = Math.min(pastedData.length - 1, 5);
+                                document.getElementById(`otp-${targetIndex}`)?.focus();
+                              }
+                            }}
+                            className="w-10 h-12 text-center text-xl font-bold bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-black transition-all shadow-sm"
+                          />
+                        ))}
+                      </div>
+                      <div className="flex justify-center">
+                        <button
+                          onClick={handleVerifyOtp}
+                          disabled={isVerifyingOtp || otpInput.length !== 6}
+                          className="px-8 py-2 bg-green-600 text-white rounded-full font-semibold hover:bg-green-700 transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {isVerifyingOtp ? 'Verifying...' : 'Submit Code'}
+                        </button>
+                      </div>
                     </div>
                   )}
                   {otpSent && !isPhoneVerified && (
