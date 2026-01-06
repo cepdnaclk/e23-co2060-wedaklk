@@ -8,13 +8,7 @@ export default function TermsPage() {
             <Header />
 
             <main className="max-w-4xl mx-auto px-4 pt-8">
-                <Link
-                    href="/?mode=register&step=3"
-                    className="inline-flex items-center gap-2 text-slate-500 hover:text-emerald-600 mb-6 transition-colors"
-                >
-                    <ArrowLeft size={20} />
-                    Back to Registration
-                </Link>
+
 
                 <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-8 md:p-12">
                     <h1 className="text-3xl font-bold text-slate-900 mb-8">Terms and Conditions</h1>
@@ -79,13 +73,13 @@ export default function TermsPage() {
                             <p>It is the sole responsibility of the Service Provider to collect the agreed-upon payment from the Client upon completion of the task. Wedak.lk does not guarantee payment and is not responsible for non-payment by the Client.</p>
 
                             <h3>6.2. Non-Payment Recourse</h3>
-                            <p>In the event that a Client refuses to pay the promised amount:
-                                <ul className="list-disc pl-5 space-y-2">
-                                    <li>Wedak.lk will <strong>not</strong> be liable for the outstanding amount.</li>
-                                    <li>The Service Provider may submit a formal complaint and leave a negative review on the Client’s profile.</li>
-                                    <li>Wedak.lk reserves the right to review such disputes and, at our sole discretion, suspend or permanently ban the Client's account from the Platform to prevent future misconduct.</li>
-                                </ul>
-                            </p>
+                            <p>In the event that a Client refuses to pay the promised amount:</p>
+                            <ul className="list-disc pl-5 space-y-2">
+                                <li>Wedak.lk will <strong>not</strong> be liable for the outstanding amount.</li>
+                                <li>The Service Provider may submit a formal complaint and leave a negative review on the Client’s profile.</li>
+                                <li>Wedak.lk reserves the right to review such disputes and, at our sole discretion, suspend or permanently ban the Client's account from the Platform to prevent future misconduct.</li>
+                            </ul>
+
                         </section>
 
                         <section className='space-y-4'>
