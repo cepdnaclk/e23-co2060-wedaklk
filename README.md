@@ -124,18 +124,6 @@ Insurance Integration for Service Delivery
 
 <!-- CONTACT -->
 
-Contact
 
-Team Name - [Insert Team Name]
 
-Team Members:
-
-[Name] - Team Leader
-
-[Name] - Frontend Developer
-
-[Name] - Backend Developer
-
-[Name] - UI/UX Designer
-
-Project Link: https://github.com/your_username/wedak-lk
+Project Link: https://github.com/thisum-dev/e23-2yp-wedaklk
