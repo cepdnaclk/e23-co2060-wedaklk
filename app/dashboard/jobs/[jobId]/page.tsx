@@ -130,7 +130,7 @@ function JobDetailContent() {
   useEffect(() => {
     if (paymentSuccess === 'true') {
       // Accept the bid on the client side as a fallback
-      // (PayHere notification may not reach localhost during development)
+      // (PayPal capture may not complete if there are network issues during development)
       const acceptBidFallback = async () => {
         try {
           console.log('Accepting bid via client-side fallback...');

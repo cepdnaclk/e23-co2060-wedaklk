@@ -1,11 +1,11 @@
 /**
- * Utility functions for commission calculations and PayHere payment formatting
+ * Utility functions for commission calculations and payment formatting
  */
 
 /**
  * Calculate commission amount from a given amount
  * @param amount - The base amount to calculate commission from
- * @param rate - The commission rate (default: 0.1 for 10%)
+ * @param rate - The commission rate (default: 0.05 for 5%)
  * @returns The calculated commission amount
  */
 export function calculateCommission(amount: number, rate: number = 0.05): number {
@@ -19,11 +19,11 @@ export function calculateCommission(amount: number, rate: number = 0.05): number
 }
 
 /**
- * Format amount for PayHere (requires 2 decimal places as string)
+ * Format amount for payment processing (2 decimal places as string)
  * @param amount - The amount to format
  * @returns Formatted amount string with 2 decimal places
  */
-export function formatPayHereAmount(amount: number): string {
+export function formatPaymentAmount(amount: number): string {
     if (amount < 0) {
         throw new Error('Amount cannot be negative');
     }
