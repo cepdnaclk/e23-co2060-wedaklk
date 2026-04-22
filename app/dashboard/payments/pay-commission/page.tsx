@@ -2,11 +2,11 @@
 
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, BadgeDollarSign, Loader2, AlertCircle } from 'lucide-react';
+import { ArrowLeft, BadgeDollarSign, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 import { useState, useEffect, Suspense } from 'react';
 import { useSession } from 'next-auth/react';
-import { PayHereService } from '@/lib/payhere';
-import { calculateCommission, formatPayHereAmount, generateCommissionOrderId } from '@/lib/utils/commission';
+import { PayPalScriptProvider, PayPalButtons } from '@paypal/react-paypal-js';
+import { calculateCommission, formatPaymentAmount, generateCommissionOrderId } from '@/lib/utils/commission';
 
 interface BidDetail {
   _id: string;
@@ -29,11 +29,16 @@ function PayCommissionContent() {
   const jobId = searchParams?.get('jobId') || '';
   const bidId = searchParams?.get('bidId') || '';
 
-  const [isPaying, setIsPaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [bid, setBid] = useState<BidDetail | null>(null);
   const [commissionAmount, setCommissionAmount] = useState<number>(0);
+
+  // Exchange rate state
+  const [exchangeRate, setExchangeRate] = useState<number | null>(null);
+  const [usdAmount, setUsdAmount] = useState<string>('0.00');
+  const [rateLoading, setRateLoading] = useState(true);
+  const [paymentProcessing, setPaymentProcessing] = useState(false);
 
   useEffect(() => {
     if (!jobId || !bidId) {
@@ -43,7 +48,16 @@ function PayCommissionContent() {
     }
 
     fetchBidDetails();
+    fetchExchangeRate();
   }, [jobId, bidId]);
+
+  // Recalculate USD when commission or rate changes
+  useEffect(() => {
+    if (commissionAmount > 0 && exchangeRate) {
+      const usd = commissionAmount / exchangeRate;
+      setUsdAmount(usd.toFixed(2));
+    }
+  }, [commissionAmount, exchangeRate]);
 
   const fetchBidDetails = async () => {
     try {
@@ -73,70 +87,79 @@ function PayCommissionContent() {
     }
   };
 
-  const handlePayCommission = async () => {
-    if (!bid || !session?.user) {
-      setError('Missing required information. Please try again.');
-      return;
+  const fetchExchangeRate = async () => {
+    try {
+      setRateLoading(true);
+      const response = await fetch('/api/payment/exchange-rate');
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch exchange rate');
+      }
+
+      setExchangeRate(data.rate);
+    } catch (err: any) {
+      console.error('Failed to fetch exchange rate', err);
+      // Use a fallback rate
+      setExchangeRate(320);
+    } finally {
+      setRateLoading(false);
+    }
+  };
+
+  const createPayPalOrder = async (): Promise<string> => {
+    if (!bid) throw new Error('Bid not loaded');
+
+    const orderId = generateCommissionOrderId(bidId);
+    const amount = formatPaymentAmount(parseFloat(usdAmount));
+
+    const response = await fetch('/api/payment/create-order', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        order_id: orderId,
+        amount_usd: amount,
+        description: `Commission for job acceptance (5% of Rs. ${bid.price.toLocaleString()})`,
+        custom_id: orderId,
+      }),
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to create payment order');
     }
 
+    return data.orderID;
+  };
+
+  const onPayPalApprove = async (data: { orderID: string }) => {
     try {
-      setIsPaying(true);
+      setPaymentProcessing(true);
       setError(null);
 
       const orderId = generateCommissionOrderId(bidId);
-      const amount = formatPayHereAmount(commissionAmount);
-      const currency = 'LKR';
 
-      // Get payment hash from backend
-      const hashResponse = await fetch('/api/payment/start', {
+      const response = await fetch('/api/payment/capture-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          order_id: orderId,
-          amount: amount,
-          currency: currency,
-          items: `Commission for job acceptance (10% of Rs. ${bid.price.toLocaleString()})`,
+          orderID: data.orderID,
+          customId: orderId,
         }),
       });
 
-      const hashData = await hashResponse.json();
-      if (!hashResponse.ok) {
-        throw new Error(hashData.error || 'Failed to generate payment hash');
+      const result = await response.json();
+
+      if (response.ok && result.status === 'success') {
+        // Redirect to success page
+        router.push(`/payment/success?type=commission&jobId=${jobId}&bidId=${bidId}`);
+      } else {
+        throw new Error(result.error || 'Payment processing failed');
       }
-
-      const user = session.user as any;
-      const firstName = user.firstName || user.name?.split(' ')[0] || 'User';
-      const lastName = user.lastName || user.name?.split(' ').slice(1).join(' ') || '';
-
-      // Configure PayHere payment
-      const paymentConfig = {
-        sandbox: true,
-        merchant_id: hashData.merchant_id,
-        return_url: `${window.location.origin}/payment/success?type=commission&jobId=${jobId}&bidId=${bidId}`,
-        cancel_url: `${window.location.origin}/payment/cancel?type=commission&jobId=${jobId}&bidId=${bidId}`,
-        notify_url: `${window.location.origin}/api/payment/notify`,
-        order_id: orderId,
-        items: `Commission Payment - Job Acceptance`,
-        amount: amount,
-        currency: currency,
-        first_name: firstName,
-        last_name: lastName,
-        email: user.email || '',
-        phone: user.mobilePhone || '',
-        address: 'N/A',
-        city: 'Colombo',
-        country: 'Sri Lanka',
-        hash: hashData.hash,
-      };
-
-      console.log('Initiating PayHere payment with config:', { ...paymentConfig, hash: '[REDACTED]' });
-
-      // Trigger PayHere payment modal
-      await PayHereService.initiatePayment(paymentConfig);
     } catch (err: any) {
-      console.error('Failed to initiate payment', err);
-      setError(err.message || 'Unable to start payment. Please try again.');
-      setIsPaying(false);
+      console.error('Payment capture failed', err);
+      setError(err.message || 'Payment processing failed. Please try again.');
+      setPaymentProcessing(false);
     }
   };
 
@@ -165,6 +188,8 @@ function PayCommissionContent() {
     );
   }
 
+  const paypalClientId = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || 'test';
+
   return (
     <div className="space-y-8">
       <div className="flex items-center gap-4">
@@ -190,7 +215,7 @@ function PayCommissionContent() {
           <div>
             <h2 className="text-lg font-semibold text-slate-900">Commission payment</h2>
             <p className="text-sm text-slate-500">
-              10% service commission for accepting this bid
+              5% service commission for accepting this bid
             </p>
           </div>
         </div>
@@ -227,37 +252,95 @@ function PayCommissionContent() {
               </div>
             </div>
 
+            {/* Currency conversion display */}
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium mb-1">Currency conversion</p>
+                  {rateLoading ? (
+                    <p className="text-xs text-amber-600 flex items-center gap-1">
+                      <Loader2 size={12} className="animate-spin" />
+                      Fetching live exchange rate...
+                    </p>
+                  ) : (
+                    <>
+                      <p className="text-xs text-amber-600">
+                        1 USD = Rs. {exchangeRate?.toFixed(2)} (live rate)
+                      </p>
+                      <p className="text-sm font-semibold mt-1">
+                        Rs. {commissionAmount.toLocaleString()} = <span className="text-emerald-700">${usdAmount} USD</span>
+                      </p>
+                    </>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={fetchExchangeRate}
+                  disabled={rateLoading}
+                  className="p-2 rounded-lg hover:bg-amber-100 transition-colors disabled:opacity-50"
+                  title="Refresh exchange rate"
+                >
+                  <RefreshCw size={16} className={rateLoading ? 'animate-spin' : ''} />
+                </button>
+              </div>
+            </div>
+
             <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
               <p className="font-medium mb-1">Bidder: {bid.bidder.name}</p>
               <p className="text-xs text-blue-600">{bid.message}</p>
             </div>
 
             <div className="text-xs text-slate-500 space-y-1">
-              <p>• You will be redirected to PayHere payment gateway</p>
+              <p>• You will pay <span className="font-semibold">${usdAmount} USD</span> via PayPal</p>
               <p>• After successful payment, the bid will be automatically accepted</p>
-              <p>• You will see bidder's details after successful payment</p>
+              <p>• You will see bidder&apos;s details after successful payment</p>
             </div>
+
+            {/* PayPal Buttons */}
+            {paymentProcessing ? (
+              <div className="w-full flex items-center justify-center gap-2 rounded-full bg-emerald-500 text-white py-3 text-sm font-semibold">
+                <Loader2 size={16} className="animate-spin" />
+                Processing payment...
+              </div>
+            ) : (
+              <PayPalScriptProvider
+                options={{
+                  clientId: paypalClientId,
+                  currency: 'USD',
+                  intent: 'capture',
+                }}
+              >
+                <PayPalButtons
+                  style={{
+                    color: 'gold',
+                    shape: 'pill',
+                    label: 'pay',
+                    height: 48,
+                  }}
+                  disabled={!bid || !!error || rateLoading || !exchangeRate}
+                  createOrder={async () => {
+                    try {
+                      return await createPayPalOrder();
+                    } catch (err: any) {
+                      setError(err.message || 'Failed to create order');
+                      throw err;
+                    }
+                  }}
+                  onApprove={async (data) => {
+                    await onPayPalApprove(data);
+                  }}
+                  onCancel={() => {
+                    router.push(`/payment/cancel?type=commission&jobId=${jobId}&bidId=${bidId}`);
+                  }}
+                  onError={(err) => {
+                    console.error('PayPal error:', err);
+                    setError('Payment failed. Please try again.');
+                  }}
+                />
+              </PayPalScriptProvider>
+            )}
           </div>
         )}
-
-        <button
-          type="button"
-          onClick={handlePayCommission}
-          disabled={isPaying || !bid || !!error}
-          className="w-full inline-flex items-center justify-center gap-2 rounded-full bg-emerald-500 text-white py-3 text-sm font-semibold hover:bg-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-300 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {isPaying ? (
-            <>
-              <Loader2 size={16} className="animate-spin" />
-              Opening payment gateway...
-            </>
-          ) : (
-            <>
-              <BadgeDollarSign size={16} />
-              Pay Rs. {commissionAmount.toLocaleString()} & Accept Bid
-            </>
-          )}
-        </button>
       </div>
     </div>
   );
@@ -275,4 +358,3 @@ export default function PayCommissionPage() {
     </Suspense>
   );
 }
-

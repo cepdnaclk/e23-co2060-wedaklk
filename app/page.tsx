@@ -710,7 +710,28 @@ function AuthPageContent() {
                 <PasswordField
                   label="Password"
                   value={registerData.password}
-                  onChange={(e) => setRegisterData({ ...registerData, password: e.target.value })}
+                  onChange={(e) => {
+                    const newPassword = e.target.value;
+                    const newErrors = { ...errors };
+
+                    setRegisterData({ ...registerData, password: newPassword });
+
+                    // Real-time validation for password
+                    if (newPassword.length < 6) {
+                      newErrors.password = 'Password must be at least 6 characters';
+                    } else {
+                      delete newErrors.password;
+                    }
+
+                    // Check if confirms still matches
+                    if (registerData.confirmPassword && newPassword !== registerData.confirmPassword) {
+                      newErrors.confirmPassword = 'Passwords do not match';
+                    } else if (registerData.confirmPassword && newPassword === registerData.confirmPassword) {
+                      delete newErrors.confirmPassword;
+                    }
+
+                    setErrors(newErrors);
+                  }}
                   placeholder="Enter your Password"
                   show={showPassword}
                   toggleShow={() => setShowPassword(!showPassword)}
@@ -721,7 +742,21 @@ function AuthPageContent() {
                 <PasswordField
                   label="Confirm Password"
                   value={registerData.confirmPassword}
-                  onChange={(e) => setRegisterData({ ...registerData, confirmPassword: e.target.value })}
+                  onChange={(e) => {
+                    const newConfirmPassword = e.target.value;
+                    const newErrors = { ...errors };
+
+                    setRegisterData({ ...registerData, confirmPassword: newConfirmPassword });
+
+                    // Real-time validation for confirm password
+                    if (registerData.password !== newConfirmPassword) {
+                      newErrors.confirmPassword = 'Passwords do not match';
+                    } else {
+                      delete newErrors.confirmPassword;
+                    }
+
+                    setErrors(newErrors);
+                  }}
                   placeholder="Confirm your Password"
                   show={showConfirmPassword}
                   toggleShow={() => setShowConfirmPassword(!showConfirmPassword)}
