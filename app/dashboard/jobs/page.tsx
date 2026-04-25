@@ -232,25 +232,38 @@ function JobsContent() {
             </p>
           </div>
           <div className="flex flex-col sm:flex-row gap-3">
-            {!isVerified && (
-              <div className="flex items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-700">
+            {!session?.user ? (
+              <div className="flex items-center gap-2 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-700">
                 <AlertCircle size={16} />
-                <span>Account pending verification</span>
+                <span>
+                  You need to{' '}
+                  <Link href="/auth" className="font-semibold underline hover:text-blue-900">log in</Link>
+                  {' '}first to post a job
+                </span>
               </div>
+            ) : (
+              <>
+                {!isVerified && (
+                  <div className="flex items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-700">
+                    <AlertCircle size={16} />
+                    <span>Account pending verification</span>
+                  </div>
+                )}
+                <Link
+                  href={isVerified ? '/dashboard/jobs/create' : '#'}
+                  onClick={(event) => {
+                    if (!isVerified) {
+                      event.preventDefault();
+                    }
+                  }}
+                  className="inline-flex items-center justify-center gap-2 rounded-full bg-emerald-500 text-white px-5 py-3 text-sm font-semibold shadow-lg hover:bg-emerald-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  aria-disabled={!isVerified}
+                >
+                  <PlusCircle size={18} />
+                  Post a job
+                </Link>
+              </>
             )}
-            <Link
-              href={isVerified ? '/dashboard/jobs/create' : '#'}
-              onClick={(event) => {
-                if (!isVerified) {
-                  event.preventDefault();
-                }
-              }}
-              className="inline-flex items-center justify-center gap-2 rounded-full bg-emerald-500 text-white px-5 py-3 text-sm font-semibold shadow-lg hover:bg-emerald-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
-              aria-disabled={!isVerified}
-            >
-              <PlusCircle size={18} />
-              Post a job
-            </Link>
           </div>
         </div>
 
