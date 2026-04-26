@@ -50,6 +50,7 @@ export async function POST(req: NextRequest) {
     }
 
     job.status = 'accepted';
+    job.acceptedBidId = new Types.ObjectId(bidId);
     await job.save();
 
     return NextResponse.json({ message: 'Bid accepted successfully' }, { status: 200 });

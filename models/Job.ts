@@ -28,6 +28,7 @@ export interface IJob extends Document {
     nicNumber?: string;
   };
   status: 'open' | 'accepted' | 'completed';
+  acceptedBidId?: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -94,6 +95,10 @@ const JobSchema = new Schema<IJob>({
     type: String,
     enum: ['open', 'accepted', 'completed'],
     default: 'open',
+  },
+  acceptedBidId: {
+    type: Schema.Types.ObjectId,
+    ref: 'Bid',
   },
 }, {
   timestamps: true,

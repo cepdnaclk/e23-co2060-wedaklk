@@ -102,6 +102,33 @@ export async function captureOrder(orderId: string): Promise<{
   if (!response.ok) {
     const errorData = await response.text();
     console.error('PayPal capture error:', errorData);
+
+    // If the order was already captured (e.g. from a duplicate request), 
+    // fetch the order details and return the capture info from there.
+    if (errorData.includes('ORDER_ALREADY_CAPTURED')) {
+      console.log('Order already captured, fetching order details...');
+      const orderResponse = await fetch(`${PAYPAL_API_BASE}/v2/checkout/orders/${orderId}`, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (orderResponse.ok) {
+        const orderData = await orderResponse.json();
+        const capture = orderData.purchase_units?.[0]?.payments?.captures?.[0];
+        
+        if (capture) {
+          return {
+            status: orderData.status,
+            captureId: capture.id || '',
+            amount: capture.amount?.value || '0',
+            currency: capture.amount?.currency_code || 'USD',
+          };
+        }
+      }
+    }
+
     throw new Error('Failed to capture PayPal payment');
   }
 
