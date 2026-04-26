@@ -22,6 +22,7 @@ interface JobDetail {
     name: string;
   };
   status: 'open' | 'accepted' | 'completed';
+  acceptedBidId?: string;
   distance?: number | null;
   createdAt: string;
   updatedAt: string;
@@ -255,25 +256,12 @@ function JobDetailContent() {
     setIsAcceptingBidId(bidId);
 
     try {
-      const profileResponse = await fetch('/api/users/profile');
-      const profileData = await profileResponse.json();
-
-      if (!profileResponse.ok) {
-        throw new Error(profileData.error || 'Failed to verify your account details.');
-      }
-
-      const hasPaymentInfo = Boolean(profileData.user?.paymentInfo?.cardNumber);
-
       const searchParams = new URLSearchParams({
         jobId: job._id,
         bidId,
       });
 
-      if (hasPaymentInfo) {
-        router.push(`/dashboard/payments/pay-commission?${searchParams.toString()}`);
-      } else {
-        router.push(`/dashboard/payments/add-card?${searchParams.toString()}`);
-      }
+      router.push(`/dashboard/payments/pay-commission?${searchParams.toString()}`);
     } catch (error: any) {
       console.error('Failed to initiate bid acceptance', error);
       setAcceptError(error.message || 'Unable to start the payment process. Please try again.');
@@ -484,10 +472,12 @@ function JobDetailContent() {
                       </p>
                       {isOwner && (
                         job.status === 'accepted' ? (
-                          <div className="inline-flex items-center gap-1 rounded-full bg-emerald-100 text-emerald-700 px-3 py-1 text-xs font-medium">
-                            <CheckCircle2 size={14} />
-                            Bid Accepted
-                          </div>
+                          job.acceptedBidId === bid._id ? (
+                            <div className="inline-flex items-center gap-1 rounded-full bg-emerald-100 text-emerald-700 px-3 py-1 text-xs font-medium">
+                              <CheckCircle2 size={14} />
+                              Bid Accepted
+                            </div>
+                          ) : null
                         ) : job.status === 'open' && (
                           <button
                             type="button"
@@ -505,6 +495,15 @@ function JobDetailContent() {
                         )
                       )}
                     </div>
+                    {isOwner && job.status === 'accepted' && job.acceptedBidId === bid._id && (
+                      <div className="mt-3 p-3 rounded-xl bg-emerald-50 border border-emerald-100 space-y-2">
+                        <p className="text-xs font-medium text-emerald-800 uppercase tracking-wider">Contact Information</p>
+                        <div className="text-sm text-emerald-700">
+                          <p><strong>Phone:</strong> {bid.bidder.phone}</p>
+                          <p><strong>Email:</strong> {bid.bidder.email}</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

@@ -68,6 +68,7 @@ export async function POST(request: NextRequest) {
 
         if (job.status === 'open') {
           job.status = 'accepted';
+          job.acceptedBidId = bidId;
           await job.save();
           console.log('Bid accepted and job status updated for job:', jobId.toString());
         } else {
