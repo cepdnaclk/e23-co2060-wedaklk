@@ -8,6 +8,7 @@ import connectDB from '@/lib/mongodb';
 import UnverifiedUser from '@/models/UnverifiedUser';
 import VerifiedUser from '@/models/VerifiedUser';
 import { hashPassword, validateEmail, validatePhone, validatePassword } from '@/lib/auth';
+import { sendWelcomeEmail } from '@/lib/email';
 
 interface RegisterRequestBody {
   firstName: string;
@@ -117,9 +118,20 @@ export async function POST(req: NextRequest) {
       $or: [{ email }, { mobilePhone }, { nicNumber }]
     });
 
-    if (existingUnverifiedUser || existingVerifiedUser) {
+    const duplicateUser = existingUnverifiedUser || existingVerifiedUser;
+
+    if (duplicateUser) {
+      if (duplicateUser.email === email) {
+        return NextResponse.json({ error: 'This email is already registered' }, { status: 409 });
+      }
+      if (duplicateUser.mobilePhone === mobilePhone) {
+        return NextResponse.json({ error: 'This mobile number is already registered' }, { status: 409 });
+      }
+      if (duplicateUser.nicNumber === nicNumber) {
+        return NextResponse.json({ error: 'This NIC number is already registered' }, { status: 409 });
+      }
       return NextResponse.json(
-        { error: 'User with this email or phone already exists' },
+        { error: 'User with this email, phone, or NIC already exists' },
         { status: 409 }
       );
     }
@@ -163,6 +175,14 @@ export async function POST(req: NextRequest) {
       lastName: newUser.lastName,
       nicNumber: newUser.nicNumber
     };
+
+    // Send the welcome email
+    try {
+      await sendWelcomeEmail(newUser.email, newUser.firstName);
+    } catch (emailError) {
+      console.error('Welcome email could not be sent:', emailError);
+      // We log the error but do not fail the registration process
+    }
 
     return NextResponse.json(
       {
