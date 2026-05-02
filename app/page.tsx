@@ -1145,6 +1145,8 @@ function AuthPageContent() {
                   error={errors.password}
                 />
 
+                <PasswordStrengthIndicator password={registerData.password} />
+
                 <PasswordField
                   label="Confirm Password"
                   value={registerData.confirmPassword}
@@ -1155,6 +1157,8 @@ function AuthPageContent() {
                   required
                   error={errors.confirmPassword}
                 />
+
+                <PasswordMatchIndicator password={registerData.password} confirmPassword={registerData.confirmPassword} />
               </div>
             )}
 
