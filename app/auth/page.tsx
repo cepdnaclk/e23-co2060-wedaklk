@@ -39,6 +39,7 @@ interface InputFieldProps {
   type?: string;
   value: string;
   onChange: (e: ChangeEvent<HTMLInputElement>) => void;
+  onBlur?: (e: React.FocusEvent<HTMLInputElement>) => void;
   placeholder: string;
   required?: boolean;
   error?: string;
@@ -77,7 +78,7 @@ interface FileUploadFieldProps {
 
 
 // Move components outside to prevent recreation on every render
-const InputField: React.FC<InputFieldProps> = ({ label, type = "text", value, onChange, placeholder, required, error }) => (
+const InputField: React.FC<InputFieldProps> = ({ label, type = "text", value, onChange, onBlur, placeholder, required, error }) => (
   <div className="mb-4" suppressHydrationWarning>
     <label className="block text-gray-700 text-sm font-medium mb-2">
       {label} {required && <span className="text-red-500">*</span>}
@@ -86,6 +87,7 @@ const InputField: React.FC<InputFieldProps> = ({ label, type = "text", value, on
       type={type}
       value={value}
       onChange={onChange}
+      onBlur={onBlur}
       placeholder={placeholder}
       className={`w-full px-4 py-3 bg-gray-100 border-none rounded-full focus:outline-none focus:ring-2 transition-all text-black placeholder:text-black placeholder:opacity-60 ${error ? 'ring-2 ring-red-400' : 'focus:ring-green-400'
         }`}
@@ -241,6 +243,41 @@ function AuthPageContent() {
     documentBack: null,
     acceptTerms: false
   });
+
+  const [isCheckingEmail, setIsCheckingEmail] = useState<boolean>(false);
+
+  const checkEmailExists = async (emailToCheck: string) => {
+    if (!emailToCheck || !/\S+@\S+\.\S+/.test(emailToCheck)) return;
+    
+    setIsCheckingEmail(true);
+    try {
+      const res = await fetch('/api/auth/check-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: emailToCheck })
+      });
+      const data = await res.json();
+      if (data.exists) {
+        setErrors(prev => ({ ...prev, email: 'This email is already registered' }));
+      } else {
+        setErrors(prev => {
+          const newErrors = { ...prev };
+          if (newErrors.email === 'This email is already registered') {
+            delete newErrors.email;
+          }
+          return newErrors;
+        });
+      }
+    } catch (err) {
+      console.error('Error checking email:', err);
+    } finally {
+      setIsCheckingEmail(false);
+    }
+  };
+
+  const handleEmailBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    checkEmailExists(e.target.value);
+  };
 
   const provinces: string[] = ['Western', 'Central', 'Southern', 'Northern', 'Eastern', 'North Western', 'North Central', 'Uva', 'Sabaragamuwa'];
   const professions: string[] = ['Student', 'Engineer', 'Lawyer', 'Doctor', 'Teacher', 'Business Owner', 'Other'];
@@ -553,7 +590,15 @@ function AuthPageContent() {
                   label="Email"
                   type="email"
                   value={registerData.email}
-                  onChange={(e) => setRegisterData({ ...registerData, email: e.target.value })}
+                  onChange={(e) => {
+                    setRegisterData({ ...registerData, email: e.target.value });
+                    if (errors.email) {
+                      const newErrors = { ...errors };
+                      delete newErrors.email;
+                      setErrors(newErrors);
+                    }
+                  }}
+                  onBlur={handleEmailBlur}
                   placeholder="Enter your Email"
                   required
                   error={errors.email}
