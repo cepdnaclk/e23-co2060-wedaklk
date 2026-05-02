@@ -185,6 +185,13 @@ function AuthPageContent() {
   const [otpTimer, setOtpTimer] = useState<number>(0);
   const [isVerifyingOtp, setIsVerifyingOtp] = useState<boolean>(false);
 
+  // Email OTP State
+  const [isEmailVerified, setIsEmailVerified] = useState<boolean>(false);
+  const [emailOtpSent, setEmailOtpSent] = useState<boolean>(false);
+  const [emailOtpInput, setEmailOtpInput] = useState<string>('');
+  const [emailOtpTimer, setEmailOtpTimer] = useState<number>(0);
+  const [isVerifyingEmailOtp, setIsVerifyingEmailOtp] = useState<boolean>(false);
+
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (otpTimer > 0) {
@@ -194,6 +201,16 @@ function AuthPageContent() {
     }
     return () => clearInterval(interval);
   }, [otpTimer]);
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (emailOtpTimer > 0) {
+      interval = setInterval(() => {
+        setEmailOtpTimer((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [emailOtpTimer]);
 
   useEffect(() => {
     // Redirect if already authenticated
@@ -255,6 +272,8 @@ function AuthPageContent() {
         newErrors.email = 'Email is required';
       } else if (!/\S+@\S+\.\S+/.test(registerData.email)) {
         newErrors.email = 'Email is invalid';
+      } else if (!isEmailVerified) {
+        newErrors.email = 'Please verify your email address';
       }
       if (!registerData.mobilePhone.trim()) {
         newErrors.mobilePhone = 'Mobile phone is required';
@@ -348,6 +367,66 @@ function AuthPageContent() {
       alert('Verification failed');
     } finally {
       setIsVerifyingOtp(false);
+    }
+  };
+
+  const handleSendEmailOtp = async () => {
+    if (!registerData.email.trim() || !/\S+@\S+\.\S+/.test(registerData.email)) {
+      setErrors({ ...errors, email: 'Enter a valid email first' });
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/otp/email/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: registerData.email })
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        setEmailOtpSent(true);
+        setEmailOtpTimer(60); // 60s cooldown
+        alert('Email OTP sent successfully!');
+      } else {
+        alert(data.error || 'Failed to send email OTP');
+      }
+    } catch (error) {
+      console.error('Email OTP Send Error:', error);
+      alert('Failed to send email OTP');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleVerifyEmailOtp = async () => {
+    if (!emailOtpInput) {
+      alert('Please enter email OTP');
+      return;
+    }
+    setIsVerifyingEmailOtp(true);
+    try {
+      const response = await fetch('/api/otp/email/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: registerData.email, otp: emailOtpInput })
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        setIsEmailVerified(true);
+        setEmailOtpSent(false); // Hide OTP field
+        setErrors({ ...errors, email: '' }); // Clear error
+        alert('Email verified successfully!');
+      } else {
+        alert(data.error || 'Invalid email OTP');
+      }
+    } catch (error) {
+      console.error('Email Verification Error:', error);
+      alert('Email verification failed');
+    } finally {
+      setIsVerifyingEmailOtp(false);
     }
   };
 
@@ -549,15 +628,114 @@ function AuthPageContent() {
                   />
                 </div>
 
-                <InputField
-                  label="Email"
-                  type="email"
-                  value={registerData.email}
-                  onChange={(e) => setRegisterData({ ...registerData, email: e.target.value })}
-                  placeholder="Enter your Email"
-                  required
-                  error={errors.email}
-                />
+                <div className="bg-gray-50 p-4 rounded-2xl mb-4 border border-gray-100">
+                  <label className="block text-gray-700 text-sm font-medium mb-2">
+                    Email <span className="text-red-500">*</span>
+                  </label>
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <input
+                        type="email"
+                        value={registerData.email}
+                        onChange={(e) => {
+                          if (!isEmailVerified) {
+                            setRegisterData({ ...registerData, email: e.target.value });
+                          }
+                        }}
+                        disabled={isEmailVerified}
+                        placeholder="Enter your Email"
+                        className={`w-full px-4 py-3 bg-gray-100 border-none rounded-full focus:outline-none focus:ring-2 transition-all text-black placeholder:text-black placeholder:opacity-60 ${errors.email ? 'ring-2 ring-red-400' : isEmailVerified ? 'ring-2 ring-green-500 bg-green-50' : 'focus:ring-green-400'
+                          }`}
+                      />
+                    </div>
+
+                    {!isEmailVerified && /\S+@\S+\.\S+/.test(registerData.email) && !emailOtpSent && (
+                      <button
+                        onClick={handleSendEmailOtp}
+                        disabled={isLoading || emailOtpTimer > 0}
+                        className="px-6 py-2 bg-green-500 text-white rounded-full font-semibold hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all whitespace-nowrap shadow-sm"
+                      >
+                        {isLoading ? 'Sending...' : emailOtpTimer > 0 ? `Wait ${emailOtpTimer}s` : 'Verify'}
+                      </button>
+                    )}
+
+                    {isEmailVerified && (
+                      <div className="flex items-center justify-center w-12 h-12 bg-green-100 rounded-full text-green-600">
+                        <CheckCircle size={24} />
+                      </div>
+                    )}
+                  </div>
+                  {errors.email && <p className="text-red-500 text-xs mt-1 ml-4">{errors.email}</p>}
+
+                  {emailOtpSent && !isEmailVerified && (
+                    <div className="mt-4 animate-in fade-in slide-in-from-top-2">
+                      <p className="text-black font-medium mb-2 text-center">Enter Email Verification Code</p>
+                      <div className="flex gap-2 justify-center mb-4">
+                        {[0, 1, 2, 3, 4, 5].map((index) => (
+                          <input
+                            key={`email-otp-${index}`}
+                            id={`email-otp-${index}`}
+                            type="text"
+                            maxLength={1}
+                            value={emailOtpInput[index] || ''}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              if (!/^\d*$/.test(value)) return;
+
+                              const newOtp = emailOtpInput.split('');
+                              while (newOtp.length < 6) newOtp.push(''); // Ensure length
+                              newOtp[index] = value;
+                              const newOtpStr = newOtp.join('').substring(0, 6);
+                              setEmailOtpInput(newOtpStr);
+
+                              if (value && index < 5) {
+                                const nextInput = document.getElementById(`email-otp-${index + 1}`);
+                                nextInput?.focus();
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Backspace' && !emailOtpInput[index] && index > 0) {
+                                const prevInput = document.getElementById(`email-otp-${index - 1}`);
+                                prevInput?.focus();
+                              }
+                            }}
+                            onPaste={(e) => {
+                              e.preventDefault();
+                              const pastedData = e.clipboardData.getData('text').slice(0, 6).replace(/\D/g, '');
+                              if (pastedData) {
+                                setEmailOtpInput(pastedData);
+                                // Focus last filled
+                                const targetIndex = Math.min(pastedData.length - 1, 5);
+                                document.getElementById(`email-otp-${targetIndex}`)?.focus();
+                              }
+                            }}
+                            className="w-10 h-12 text-center text-xl font-bold bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-black transition-all shadow-sm"
+                          />
+                        ))}
+                      </div>
+                      <div className="flex justify-center">
+                        <button
+                          onClick={handleVerifyEmailOtp}
+                          disabled={isVerifyingEmailOtp || emailOtpInput.length !== 6}
+                          className="px-8 py-2 bg-green-600 text-white rounded-full font-semibold hover:bg-green-700 transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {isVerifyingEmailOtp ? 'Verifying...' : 'Submit Code'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  {emailOtpSent && !isEmailVerified && (
+                    <div className="mt-2 text-center">
+                      <button
+                        onClick={handleSendEmailOtp}
+                        disabled={emailOtpTimer > 0 || isLoading}
+                        className="text-xs text-green-600 hover:underline disabled:text-gray-400 disabled:no-underline"
+                      >
+                        {emailOtpTimer > 0 ? `Resend code in ${emailOtpTimer}s` : 'Resend Code'}
+                      </button>
+                    </div>
+                  )}
+                </div>
 
                 <div className="bg-gray-50 p-4 rounded-2xl mb-4 border border-gray-100">
                   <label className="block text-gray-700 text-sm font-medium mb-2">
