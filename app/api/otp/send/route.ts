@@ -2,6 +2,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import Otp from '@/models/Otp';
+import UnverifiedUser from '@/models/UnverifiedUser';
+import VerifiedUser from '@/models/VerifiedUser';
 
 const TEXTLK_API_URL = 'https://app.text.lk/api/v3/sms/send';
 
@@ -37,6 +39,22 @@ export async function POST(req: NextRequest) {
         const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes expiry
 
         await connectDB();
+
+        // Check if the user already exists with this mobile number
+        const existingUnverifiedUser = await UnverifiedUser.findOne({
+            $or: [{ mobilePhone }, { mobilePhone: normalizedPhone }]
+        });
+
+        const existingVerifiedUser = await VerifiedUser.findOne({
+            $or: [{ mobilePhone }, { mobilePhone: normalizedPhone }]
+        });
+
+        if (existingUnverifiedUser || existingVerifiedUser) {
+            return NextResponse.json(
+                { error: 'Mobile number is already registered' },
+                { status: 409 }
+            );
+        }
 
         // Store or Update OTP in DB
         // We update if exists to prevent spamming new IDs for same phone
