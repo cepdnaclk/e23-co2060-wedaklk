@@ -1,4 +1,7 @@
-import { redirect } from 'next/navigation';
+// ============================================
+// FILE: app/auth/page.tsx
+// Auth Page - Login/Register (TypeScript)
+// ============================================
 
 'use client';
 
@@ -7,7 +10,7 @@ import { signIn, useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Eye, EyeOff, Upload, CheckCircle } from 'lucide-react';
-import Header from '@/components/Header';
+
 interface LoginData {
   emailOrPhone: string;
   password: string;
@@ -36,6 +39,7 @@ interface InputFieldProps {
   type?: string;
   value: string;
   onChange: (e: ChangeEvent<HTMLInputElement>) => void;
+  onBlur?: (e: React.FocusEvent<HTMLInputElement>) => void;
   placeholder: string;
   required?: boolean;
   error?: string;
@@ -70,92 +74,20 @@ interface FileUploadFieldProps {
 }
 
 
-// Password Strength Indicator Component
-const PasswordStrengthIndicator: React.FC<{ password: string }> = ({ password }) => {
-  if (!password) return null;
 
-  const checks = [
-    { label: 'At least 6 characters', met: password.length >= 6 },
-    { label: 'Contains uppercase letter', met: /[A-Z]/.test(password) },
-    { label: 'Contains lowercase letter', met: /[a-z]/.test(password) },
-    { label: 'Contains a number', met: /[0-9]/.test(password) },
-  ];
 
-  const metCount = checks.filter(c => c.met).length;
-  const strengthPercent = (metCount / checks.length) * 100;
-  const strengthLabel = metCount <= 1 ? 'Weak' : metCount === 2 ? 'Fair' : metCount === 3 ? 'Good' : 'Strong';
-  const strengthColor = metCount <= 1 ? 'bg-red-500' : metCount === 2 ? 'bg-orange-400' : metCount === 3 ? 'bg-yellow-400' : 'bg-green-500';
-  const strengthTextColor = metCount <= 1 ? 'text-red-500' : metCount === 2 ? 'text-orange-400' : metCount === 3 ? 'text-yellow-500' : 'text-green-500';
-
-  return (
-    <div className="mb-4 px-1 -mt-2">
-      <div className="flex items-center gap-2 mb-2">
-        <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
-          <div
-            className={`h-full rounded-full transition-all duration-300 ${strengthColor}`}
-            style={{ width: `${strengthPercent}%` }}
-          />
-        </div>
-        <span className={`text-xs font-semibold ${strengthTextColor} min-w-[40px]`}>{strengthLabel}</span>
-      </div>
-      <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-        {checks.map((check) => (
-          <div key={check.label} className="flex items-center gap-1.5">
-            {check.met ? (
-              <svg className="w-3.5 h-3.5 text-green-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-              </svg>
-            ) : (
-              <svg className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            )}
-            <span className={`text-xs ${check.met ? 'text-green-600' : 'text-gray-400'}`}>{check.label}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
-
-// Password Match Indicator Component
-const PasswordMatchIndicator: React.FC<{ password: string; confirmPassword: string }> = ({ password, confirmPassword }) => {
-  if (!confirmPassword) return null;
-
-  const matches = password === confirmPassword;
-
-  return (
-    <div className="flex items-center gap-1.5 px-1 -mt-2 mb-4">
-      {matches ? (
-        <>
-          <svg className="w-4 h-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-          </svg>
-          <span className="text-xs text-green-600 font-medium">Passwords match</span>
-        </>
-      ) : (
-        <>
-          <svg className="w-4 h-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-          <span className="text-xs text-red-500 font-medium">Passwords do not match</span>
-        </>
-      )}
-    </div>
-  );
-};
 
 // Move components outside to prevent recreation on every render
-const InputField: React.FC<InputFieldProps> = ({ label, type = "text", value, onChange, placeholder, required, error }) => (
+const InputField: React.FC<InputFieldProps> = ({ label, type = "text", value, onChange, onBlur, placeholder, required, error }) => (
   <div className="mb-4" suppressHydrationWarning>
     <label className="block text-gray-700 text-sm font-medium mb-2">
       {label} {required && <span className="text-red-500">*</span>}
     </label>
     <input
-      suppressHydrationWarning
       type={type}
       value={value}
       onChange={onChange}
+      onBlur={onBlur}
       placeholder={placeholder}
       className={`w-full px-4 py-3 bg-gray-100 border-none rounded-full focus:outline-none focus:ring-2 transition-all text-black placeholder:text-black placeholder:opacity-60 ${error ? 'ring-2 ring-red-400' : 'focus:ring-green-400'
         }`}
@@ -170,7 +102,6 @@ const SelectField: React.FC<SelectFieldProps> = ({ label, value, onChange, optio
       {label} {required && <span className="text-red-500">*</span>}
     </label>
     <select
-      suppressHydrationWarning
       value={value}
       onChange={onChange}
       className={`w-full px-4 py-3 bg-gray-100 border-none rounded-full focus:outline-none focus:ring-2 transition-all appearance-none text-black ${error ? 'ring-2 ring-red-400' : 'focus:ring-green-400'
@@ -192,7 +123,6 @@ const PasswordField: React.FC<PasswordFieldProps> = ({ label, value, onChange, p
     </label>
     <div className="relative">
       <input
-        suppressHydrationWarning
         type={show ? "text" : "password"}
         value={value}
         onChange={onChange}
@@ -201,7 +131,6 @@ const PasswordField: React.FC<PasswordFieldProps> = ({ label, value, onChange, p
           }`}
       />
       <button
-        suppressHydrationWarning
         type="button"
         onClick={toggleShow}
         className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
@@ -258,19 +187,6 @@ function AuthPageContent() {
   const [otpTimer, setOtpTimer] = useState<number>(0);
   const [isVerifyingOtp, setIsVerifyingOtp] = useState<boolean>(false);
 
-  // Forgot Password State
-  const [showForgotPassword, setShowForgotPassword] = useState<boolean>(false);
-  const [forgotPasswordStep, setForgotPasswordStep] = useState<'email' | 'otp' | 'newPassword'>('email');
-  const [forgotEmail, setForgotEmail] = useState<string>('');
-  const [forgotOtpInput, setForgotOtpInput] = useState<string>('');
-  const [forgotOtpSent, setForgotOtpSent] = useState<boolean>(false);
-  const [forgotOtpTimer, setForgotOtpTimer] = useState<number>(0);
-  const [newPassword, setNewPassword] = useState<string>('');
-  const [confirmNewPassword, setConfirmNewPassword] = useState<string>('');
-  const [showNewPassword, setShowNewPassword] = useState<boolean>(false);
-  const [showConfirmNewPassword, setShowConfirmNewPassword] = useState<boolean>(false);
-  const [resetSuccess, setResetSuccess] = useState<boolean>(false);
-
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (otpTimer > 0) {
@@ -282,19 +198,9 @@ function AuthPageContent() {
   }, [otpTimer]);
 
   useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (forgotOtpTimer > 0) {
-      interval = setInterval(() => {
-        setForgotOtpTimer((prev) => prev - 1);
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [forgotOtpTimer]);
-
-  useEffect(() => {
     // Redirect if already authenticated
     if (status === 'authenticated') {
-      router.push('/dashboard');
+      router.push('/dashboard/jobs');
     }
   }, [status, router]);
 
@@ -337,6 +243,41 @@ function AuthPageContent() {
     documentBack: null,
     acceptTerms: false
   });
+
+  const [isCheckingEmail, setIsCheckingEmail] = useState<boolean>(false);
+
+  const checkEmailExists = async (emailToCheck: string) => {
+    if (!emailToCheck || !/\S+@\S+\.\S+/.test(emailToCheck)) return;
+    
+    setIsCheckingEmail(true);
+    try {
+      const res = await fetch('/api/auth/check-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: emailToCheck })
+      });
+      const data = await res.json();
+      if (data.exists) {
+        setErrors(prev => ({ ...prev, email: 'This email is already registered' }));
+      } else {
+        setErrors(prev => {
+          const newErrors = { ...prev };
+          if (newErrors.email === 'This email is already registered') {
+            delete newErrors.email;
+          }
+          return newErrors;
+        });
+      }
+    } catch (err) {
+      console.error('Error checking email:', err);
+    } finally {
+      setIsCheckingEmail(false);
+    }
+  };
+
+  const handleEmailBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    checkEmailExists(e.target.value);
+  };
 
   const provinces: string[] = ['Western', 'Central', 'Southern', 'Northern', 'Eastern', 'North Western', 'North Central', 'Uva', 'Sabaragamuwa'];
   const professions: string[] = ['Student', 'Engineer', 'Lawyer', 'Doctor', 'Teacher', 'Business Owner', 'Other'];
@@ -447,136 +388,6 @@ function AuthPageContent() {
     }
   };
 
-  // Forgot Password Handlers
-  const handleForgotSendOtp = async () => {
-    if (!forgotEmail.trim() || !/\S+@\S+\.\S+/.test(forgotEmail)) {
-      setErrors({ ...errors, forgotEmail: 'Please enter a valid email address' });
-      return;
-    }
-
-    setIsLoading(true);
-    setErrors({});
-    try {
-      const response = await fetch('/api/otp/email/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: forgotEmail })
-      });
-
-      const data = await response.json();
-      if (response.ok) {
-        setForgotOtpSent(true);
-        setForgotOtpTimer(60);
-        setForgotPasswordStep('otp');
-        alert('Verification code sent to your email!');
-      } else {
-        alert(data.error || 'Failed to send verification code');
-      }
-    } catch (error) {
-      console.error('Forgot Password OTP Error:', error);
-      alert('Failed to send verification code');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleForgotVerifyOtp = async () => {
-    if (forgotOtpInput.length !== 6) {
-      alert('Please enter the 6-digit code');
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const response = await fetch('/api/otp/email/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: forgotEmail, otp: forgotOtpInput })
-      });
-
-      const data = await response.json();
-      if (response.ok) {
-        setForgotPasswordStep('newPassword');
-      } else {
-        alert(data.error || 'Invalid verification code');
-      }
-    } catch (error) {
-      console.error('OTP Verify Error:', error);
-      alert('Verification failed');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleResetPassword = async () => {
-    const newErrors: Record<string, string> = {};
-
-    if (!newPassword) {
-      newErrors.newPassword = 'Password is required';
-    } else if (newPassword.length < 6) {
-      newErrors.newPassword = 'Password must be at least 6 characters';
-    }
-    if (!confirmNewPassword) {
-      newErrors.confirmNewPassword = 'Please confirm your password';
-    } else if (newPassword !== confirmNewPassword) {
-      newErrors.confirmNewPassword = 'Passwords do not match';
-    }
-
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const response = await fetch('/api/auth/reset-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: forgotEmail,
-          otp: forgotOtpInput,
-          newPassword: newPassword
-        })
-      });
-
-      const data = await response.json();
-      if (response.ok) {
-        setResetSuccess(true);
-        // Reset all forgot password state after a short delay
-        setTimeout(() => {
-          setShowForgotPassword(false);
-          setForgotPasswordStep('email');
-          setForgotEmail('');
-          setForgotOtpInput('');
-          setForgotOtpSent(false);
-          setNewPassword('');
-          setConfirmNewPassword('');
-          setResetSuccess(false);
-          setErrors({});
-        }, 3000);
-      } else {
-        alert(data.error || 'Password reset failed');
-      }
-    } catch (error) {
-      console.error('Reset Password Error:', error);
-      alert('Password reset failed');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleBackToLogin = () => {
-    setShowForgotPassword(false);
-    setForgotPasswordStep('email');
-    setForgotEmail('');
-    setForgotOtpInput('');
-    setForgotOtpSent(false);
-    setForgotOtpTimer(0);
-    setNewPassword('');
-    setConfirmNewPassword('');
-    setResetSuccess(false);
-    setErrors({});
-  };
 
   const handleLogin = async (): Promise<void> => {
     setIsLoading(true);
@@ -590,7 +401,7 @@ function AuthPageContent() {
       if (result?.error) {
         alert(result.error);
       } else {
-        router.push('/dashboard');
+        router.push('/dashboard/jobs');
       }
     } catch (error) {
       console.error('Login error:', error);
@@ -699,245 +510,46 @@ function AuthPageContent() {
   if (isLogin) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-green-50 to-white flex flex-col p-4">
-        <Header />
         <div className="flex-1 flex items-center justify-center">
           <div className="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-md">
+            <h1 className="text-3xl font-bold text-center text-gray-800 mb-8">Welcome Back</h1>
 
-            {/* Forgot Password Flow */}
-            {showForgotPassword ? (
-              <div>
-                {/* Success State */}
-                {resetSuccess ? (
-                  <div className="text-center py-8">
-                    <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <CheckCircle size={32} className="text-green-500" />
-                    </div>
-                    <h2 className="text-2xl font-bold text-gray-800 mb-2">Password Reset Successful!</h2>
-                    <p className="text-gray-600">Redirecting to login...</p>
-                  </div>
-                ) : (
-                  <>
-                    <h1 className="text-3xl font-bold text-center text-gray-800 mb-2">Forgot Password</h1>
-                    <p className="text-center text-gray-500 mb-8 text-sm">
-                      {forgotPasswordStep === 'email' && 'Enter your email to receive a verification code'}
-                      {forgotPasswordStep === 'otp' && 'Enter the 6-digit code sent to your email'}
-                      {forgotPasswordStep === 'newPassword' && 'Set your new password'}
-                    </p>
+            <div>
+              <InputField
+                label="Email or Phone"
+                type="text"
+                value={loginData.emailOrPhone}
+                onChange={(e) => setLoginData({ ...loginData, emailOrPhone: e.target.value })}
+                placeholder="Enter your Email or Phone"
+              />
 
-                    {/* Step 1: Enter Email */}
-                    {forgotPasswordStep === 'email' && (
-                      <div>
-                        <InputField
-                          label="Email Address"
-                          type="email"
-                          value={forgotEmail}
-                          onChange={(e) => {
-                            setForgotEmail(e.target.value);
-                            setErrors({});
-                          }}
-                          placeholder="Enter your registered email"
-                          required
-                          error={errors.forgotEmail}
-                        />
+              <PasswordField
+                label="Password"
+                value={loginData.password}
+                onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
+                placeholder="Enter your Password"
+                show={showPassword}
+                toggleShow={() => setShowPassword(!showPassword)}
+              />
 
-                        <button
-                          onClick={handleForgotSendOtp}
-                          disabled={isLoading}
-                          className="w-full bg-green-500 hover:bg-green-600 text-white font-semibold py-3 rounded-full transition-all shadow-lg hover:shadow-xl mt-4 disabled:opacity-50"
-                        >
-                          {isLoading ? 'Sending...' : 'Send Verification Code'}
-                        </button>
-                      </div>
-                    )}
+              <button
+                onClick={handleLogin}
+                disabled={isLoading}
+                className="w-full bg-green-500 hover:bg-green-600 text-white font-semibold py-3 rounded-full transition-all shadow-lg hover:shadow-xl mt-6 disabled:opacity-50"
+              >
+                {isLoading ? 'Logging in...' : 'Login'}
+              </button>
+            </div>
 
-                    {/* Step 2: Enter OTP */}
-                    {forgotPasswordStep === 'otp' && (
-                      <div>
-                        <div className="bg-gray-50 p-4 rounded-2xl mb-4 border border-gray-100">
-                          <p className="text-sm text-gray-600 text-center mb-1">Code sent to</p>
-                          <p className="text-sm font-semibold text-gray-800 text-center mb-4">{forgotEmail}</p>
-
-                          <div className="flex gap-2 justify-center mb-4">
-                            {[0, 1, 2, 3, 4, 5].map((index) => (
-                              <input
-                                key={`forgot-otp-${index}`}
-                                id={`forgot-otp-${index}`}
-                                type="text"
-                                maxLength={1}
-                                value={forgotOtpInput[index] || ''}
-                                onChange={(e) => {
-                                  const value = e.target.value;
-                                  if (!/^\d*$/.test(value)) return;
-
-                                  const newOtp = forgotOtpInput.split('');
-                                  while (newOtp.length < 6) newOtp.push('');
-                                  newOtp[index] = value;
-                                  const newOtpStr = newOtp.join('').substring(0, 6);
-                                  setForgotOtpInput(newOtpStr);
-
-                                  if (value && index < 5) {
-                                    const nextInput = document.getElementById(`forgot-otp-${index + 1}`);
-                                    nextInput?.focus();
-                                  }
-                                }}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Backspace' && !forgotOtpInput[index] && index > 0) {
-                                    const prevInput = document.getElementById(`forgot-otp-${index - 1}`);
-                                    prevInput?.focus();
-                                  }
-                                }}
-                                onPaste={(e) => {
-                                  e.preventDefault();
-                                  const pastedData = e.clipboardData.getData('text').slice(0, 6).replace(/\D/g, '');
-                                  if (pastedData) {
-                                    setForgotOtpInput(pastedData);
-                                    const targetIndex = Math.min(pastedData.length - 1, 5);
-                                    document.getElementById(`forgot-otp-${targetIndex}`)?.focus();
-                                  }
-                                }}
-                                className="w-10 h-12 text-center text-xl font-bold bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-black transition-all shadow-sm"
-                              />
-                            ))}
-                          </div>
-
-                          <div className="text-center">
-                            <button
-                              onClick={handleForgotSendOtp}
-                              disabled={forgotOtpTimer > 0 || isLoading}
-                              className="text-xs text-green-600 hover:underline disabled:text-gray-400 disabled:no-underline"
-                            >
-                              {forgotOtpTimer > 0 ? `Resend code in ${forgotOtpTimer}s` : 'Resend Code'}
-                            </button>
-                          </div>
-                        </div>
-
-                        <button
-                          onClick={handleForgotVerifyOtp}
-                          disabled={isLoading || forgotOtpInput.length !== 6}
-                          className="w-full bg-green-500 hover:bg-green-600 text-white font-semibold py-3 rounded-full transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {isLoading ? 'Verifying...' : 'Verify Code'}
-                        </button>
-                      </div>
-                    )}
-
-                    {/* Step 3: New Password */}
-                    {forgotPasswordStep === 'newPassword' && (
-                      <div>
-                        <PasswordField
-                          label="New Password"
-                          value={newPassword}
-                          onChange={(e) => {
-                            setNewPassword(e.target.value);
-                            const newErrors = { ...errors };
-                            if (e.target.value.length >= 6) delete newErrors.newPassword;
-                            if (confirmNewPassword && e.target.value === confirmNewPassword) delete newErrors.confirmNewPassword;
-                            setErrors(newErrors);
-                          }}
-                          placeholder="Enter your new password"
-                          show={showNewPassword}
-                          toggleShow={() => setShowNewPassword(!showNewPassword)}
-                          required
-                          error={errors.newPassword}
-                        />
-
-                        <PasswordStrengthIndicator password={newPassword} />
-
-                        <PasswordField
-                          label="Confirm New Password"
-                          value={confirmNewPassword}
-                          onChange={(e) => {
-                            setConfirmNewPassword(e.target.value);
-                            const newErrors = { ...errors };
-                            if (newPassword === e.target.value) delete newErrors.confirmNewPassword;
-                            setErrors(newErrors);
-                          }}
-                          placeholder="Confirm your new password"
-                          show={showConfirmNewPassword}
-                          toggleShow={() => setShowConfirmNewPassword(!showConfirmNewPassword)}
-                          required
-                          error={errors.confirmNewPassword}
-                        />
-
-                        <PasswordMatchIndicator password={newPassword} confirmPassword={confirmNewPassword} />
-
-                        <button
-                          onClick={handleResetPassword}
-                          disabled={isLoading}
-                          className="w-full bg-green-500 hover:bg-green-600 text-white font-semibold py-3 rounded-full transition-all shadow-lg hover:shadow-xl mt-4 disabled:opacity-50"
-                        >
-                          {isLoading ? 'Resetting...' : 'Reset Password'}
-                        </button>
-                      </div>
-                    )}
-
-                    {/* Back to Login link */}
-                    <div className="text-center mt-6">
-                      <button
-                        onClick={handleBackToLogin}
-                        className="text-green-500 font-semibold hover:text-green-600 transition-all"
-                      >
-                        ← Back to Login
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
-            ) : (
-              /* Normal Login Flow */
-              <>
-                <h1 className="text-3xl font-bold text-center text-gray-800 mb-8">Welcome Back</h1>
-
-                <div>
-                  <InputField
-                    label="Email or Phone"
-                    type="text"
-                    value={loginData.emailOrPhone}
-                    onChange={(e) => setLoginData({ ...loginData, emailOrPhone: e.target.value })}
-                    placeholder="Enter your Email or Phone"
-                  />
-
-                  <PasswordField
-                    label="Password"
-                    value={loginData.password}
-                    onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
-                    placeholder="Enter your Password"
-                    show={showPassword}
-                    toggleShow={() => setShowPassword(!showPassword)}
-                  />
-
-                  <div className="text-right mt-1 mb-4">
-                    <button
-                      suppressHydrationWarning
-                      onClick={() => setShowForgotPassword(true)}
-                      className="text-sm text-green-500 hover:text-green-600 font-medium transition-all hover:underline"
-                    >
-                      Forgot Password?
-                    </button>
-                  </div>
-
-                  <button
-                    suppressHydrationWarning
-                    onClick={handleLogin}
-                    disabled={isLoading}
-                    className="w-full bg-green-500 hover:bg-green-600 text-white font-semibold py-3 rounded-full transition-all shadow-lg hover:shadow-xl disabled:opacity-50"
-                  >
-                    {isLoading ? 'Logging in...' : 'Login'}
-                  </button>
-                </div>
-
-                <div className="text-center mt-6">
-                  <span className="text-gray-600">Don't have an account? </span>
-                  <button
-                    suppressHydrationWarning
-                    onClick={() => setIsLogin(false)}
-                    className="text-green-500 font-semibold hover:text-green-600 transition-all"
-                  >
-                    Register
-                  </button>
-                </div>
-              </>
-            )}
+            <div className="text-center mt-6">
+              <span className="text-gray-600">Don't have an account? </span>
+              <button
+                onClick={() => setIsLogin(false)}
+                className="text-green-500 font-semibold hover:text-green-600 transition-all"
+              >
+                Register
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -946,7 +558,6 @@ function AuthPageContent() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-white py-8 px-4">
-      <Header />
       <div className="max-w-4xl mx-auto mt-8">
         <div className="bg-white rounded-3xl shadow-2xl p-8">
           <h1 className="text-3xl font-bold text-center text-gray-800 mb-8">Create Your Account</h1>
@@ -979,7 +590,15 @@ function AuthPageContent() {
                   label="Email"
                   type="email"
                   value={registerData.email}
-                  onChange={(e) => setRegisterData({ ...registerData, email: e.target.value })}
+                  onChange={(e) => {
+                    setRegisterData({ ...registerData, email: e.target.value });
+                    if (errors.email) {
+                      const newErrors = { ...errors };
+                      delete newErrors.email;
+                      setErrors(newErrors);
+                    }
+                  }}
+                  onBlur={handleEmailBlur}
                   placeholder="Enter your Email"
                   required
                   error={errors.email}
@@ -1134,7 +753,28 @@ function AuthPageContent() {
                 <PasswordField
                   label="Password"
                   value={registerData.password}
-                  onChange={(e) => setRegisterData({ ...registerData, password: e.target.value })}
+                  onChange={(e) => {
+                    const newPassword = e.target.value;
+                    const newErrors = { ...errors };
+
+                    setRegisterData({ ...registerData, password: newPassword });
+
+                    // Real-time validation for password
+                    if (newPassword.length < 6) {
+                      newErrors.password = 'Password must be at least 6 characters';
+                    } else {
+                      delete newErrors.password;
+                    }
+
+                    // Check if confirms still matches
+                    if (registerData.confirmPassword && newPassword !== registerData.confirmPassword) {
+                      newErrors.confirmPassword = 'Passwords do not match';
+                    } else if (registerData.confirmPassword && newPassword === registerData.confirmPassword) {
+                      delete newErrors.confirmPassword;
+                    }
+
+                    setErrors(newErrors);
+                  }}
                   placeholder="Enter your Password"
                   show={showPassword}
                   toggleShow={() => setShowPassword(!showPassword)}
@@ -1142,20 +782,30 @@ function AuthPageContent() {
                   error={errors.password}
                 />
 
-                <PasswordStrengthIndicator password={registerData.password} />
-
                 <PasswordField
                   label="Confirm Password"
                   value={registerData.confirmPassword}
-                  onChange={(e) => setRegisterData({ ...registerData, confirmPassword: e.target.value })}
+                  onChange={(e) => {
+                    const newConfirmPassword = e.target.value;
+                    const newErrors = { ...errors };
+
+                    setRegisterData({ ...registerData, confirmPassword: newConfirmPassword });
+
+                    // Real-time validation for confirm password
+                    if (registerData.password !== newConfirmPassword) {
+                      newErrors.confirmPassword = 'Passwords do not match';
+                    } else {
+                      delete newErrors.confirmPassword;
+                    }
+
+                    setErrors(newErrors);
+                  }}
                   placeholder="Confirm your Password"
                   show={showConfirmPassword}
                   toggleShow={() => setShowConfirmPassword(!showConfirmPassword)}
                   required
                   error={errors.confirmPassword}
                 />
-
-                <PasswordMatchIndicator password={registerData.password} confirmPassword={registerData.confirmPassword} />
               </div>
             )}
 
@@ -1299,6 +949,4 @@ export default function AuthPage() {
       <AuthPageContent />
     </Suspense>
   );
-export default function Home() {
-  redirect('/dashboard/jobs');
 }
