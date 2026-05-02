@@ -187,6 +187,13 @@ function AuthPageContent() {
   const [otpTimer, setOtpTimer] = useState<number>(0);
   const [isVerifyingOtp, setIsVerifyingOtp] = useState<boolean>(false);
 
+  // Email OTP State
+  const [isEmailVerified, setIsEmailVerified] = useState<boolean>(false);
+  const [emailOtpSent, setEmailOtpSent] = useState<boolean>(false);
+  const [emailOtpInput, setEmailOtpInput] = useState<string>('');
+  const [emailOtpTimer, setEmailOtpTimer] = useState<number>(0);
+  const [isVerifyingEmailOtp, setIsVerifyingEmailOtp] = useState<boolean>(false);
+
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (otpTimer > 0) {
@@ -196,6 +203,16 @@ function AuthPageContent() {
     }
     return () => clearInterval(interval);
   }, [otpTimer]);
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (emailOtpTimer > 0) {
+      interval = setInterval(() => {
+        setEmailOtpTimer((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [emailOtpTimer]);
 
   useEffect(() => {
     // Redirect if already authenticated
@@ -248,7 +265,7 @@ function AuthPageContent() {
 
   const checkEmailExists = async (emailToCheck: string) => {
     if (!emailToCheck || !/\S+@\S+\.\S+/.test(emailToCheck)) return;
-    
+
     setIsCheckingEmail(true);
     try {
       const res = await fetch('/api/auth/check-email', {
@@ -292,6 +309,8 @@ function AuthPageContent() {
         newErrors.email = 'Email is required';
       } else if (!/\S+@\S+\.\S+/.test(registerData.email)) {
         newErrors.email = 'Email is invalid';
+      } else if (!isEmailVerified) {
+        newErrors.email = 'Please verify your email address';
       }
       if (!registerData.mobilePhone.trim()) {
         newErrors.mobilePhone = 'Mobile phone is required';
@@ -385,6 +404,66 @@ function AuthPageContent() {
       alert('Verification failed');
     } finally {
       setIsVerifyingOtp(false);
+    }
+  };
+
+  const handleSendEmailOtp = async () => {
+    if (!registerData.email.trim() || !/\S+@\S+\.\S+/.test(registerData.email)) {
+      setErrors({ ...errors, email: 'Enter a valid email first' });
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/otp/email/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: registerData.email })
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        setEmailOtpSent(true);
+        setEmailOtpTimer(60); // 60s cooldown
+        alert('Email OTP sent successfully!');
+      } else {
+        alert(data.error || 'Failed to send email OTP');
+      }
+    } catch (error) {
+      console.error('Email OTP Send Error:', error);
+      alert('Failed to send email OTP');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleVerifyEmailOtp = async () => {
+    if (!emailOtpInput) {
+      alert('Please enter email OTP');
+      return;
+    }
+    setIsVerifyingEmailOtp(true);
+    try {
+      const response = await fetch('/api/otp/email/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: registerData.email, otp: emailOtpInput })
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        setIsEmailVerified(true);
+        setEmailOtpSent(false); // Hide OTP field
+        setErrors({ ...errors, email: '' }); // Clear error
+        alert('Email verified successfully!');
+      } else {
+        alert(data.error || 'Invalid email OTP');
+      }
+    } catch (error) {
+      console.error('Email Verification Error:', error);
+      alert('Email verification failed');
+    } finally {
+      setIsVerifyingEmailOtp(false);
     }
   };
 
@@ -590,15 +669,7 @@ function AuthPageContent() {
                   label="Email"
                   type="email"
                   value={registerData.email}
-                  onChange={(e) => {
-                    setRegisterData({ ...registerData, email: e.target.value });
-                    if (errors.email) {
-                      const newErrors = { ...errors };
-                      delete newErrors.email;
-                      setErrors(newErrors);
-                    }
-                  }}
-                  onBlur={handleEmailBlur}
+                  onChange={(e) => setRegisterData({ ...registerData, email: e.target.value })}
                   placeholder="Enter your Email"
                   required
                   error={errors.email}
