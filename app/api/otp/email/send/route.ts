@@ -43,14 +43,29 @@ export async function POST(req: NextRequest) {
                     user: process.env.EMAIL_USER,
                     pass: process.env.EMAIL_PASS,
                 },
+                tls: {
+                    rejectUnauthorized: false,
+                },
             });
 
             const mailOptions = {
-                from: process.env.EMAIL_USER,
+                from: `"wedak.lk" <${process.env.EMAIL_USER}>`,
                 to: email,
-                subject: 'Your Verification Code',
+                subject: 'Your Verification Code - wedak.lk',
                 text: `Your OTP is: ${otp}. Valid for 5 minutes.`,
-                html: `<p>Your OTP is: <strong>${otp}</strong>. Valid for 5 minutes.</p>`,
+                html: `
+                    <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px; background: #f9fafb; border-radius: 16px;">
+                        <div style="text-align: center; margin-bottom: 24px;">
+                            <h2 style="color: #1f2937; margin: 0;">wedak.lk</h2>
+                        </div>
+                        <div style="background: white; padding: 32px; border-radius: 12px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                            <p style="color: #6b7280; font-size: 14px; margin-bottom: 8px;">Your verification code is</p>
+                            <div style="font-size: 36px; font-weight: bold; letter-spacing: 8px; color: #22c55e; margin: 16px 0; padding: 16px; background: #f0fdf4; border-radius: 8px;">${otp}</div>
+                            <p style="color: #9ca3af; font-size: 12px; margin-top: 16px;">This code is valid for 5 minutes. Do not share it with anyone.</p>
+                        </div>
+                        <p style="color: #9ca3af; font-size: 11px; text-align: center; margin-top: 16px;">If you didn't request this code, please ignore this email.</p>
+                    </div>
+                `,
             };
 
             // We try to send the email, but if it fails we catch it.

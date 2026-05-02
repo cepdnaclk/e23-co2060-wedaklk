@@ -155,6 +155,7 @@ const InputField: React.FC<InputFieldProps> = ({ label, type = "text", value, on
       {label} {required && <span className="text-red-500">*</span>}
     </label>
     <input
+      suppressHydrationWarning
       type={type}
       value={value}
       onChange={onChange}
@@ -172,6 +173,7 @@ const SelectField: React.FC<SelectFieldProps> = ({ label, value, onChange, optio
       {label} {required && <span className="text-red-500">*</span>}
     </label>
     <select
+      suppressHydrationWarning
       value={value}
       onChange={onChange}
       className={`w-full px-4 py-3 bg-gray-100 border-none rounded-full focus:outline-none focus:ring-2 transition-all appearance-none text-black ${error ? 'ring-2 ring-red-400' : 'focus:ring-green-400'
@@ -193,6 +195,7 @@ const PasswordField: React.FC<PasswordFieldProps> = ({ label, value, onChange, p
     </label>
     <div className="relative">
       <input
+        suppressHydrationWarning
         type={show ? "text" : "password"}
         value={value}
         onChange={onChange}
@@ -201,6 +204,7 @@ const PasswordField: React.FC<PasswordFieldProps> = ({ label, value, onChange, p
           }`}
       />
       <button
+        suppressHydrationWarning
         type="button"
         onClick={toggleShow}
         className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
@@ -907,6 +911,7 @@ function AuthPageContent() {
 
                   <div className="text-right mt-1 mb-4">
                     <button
+                      suppressHydrationWarning
                       onClick={() => setShowForgotPassword(true)}
                       className="text-sm text-green-500 hover:text-green-600 font-medium transition-all hover:underline"
                     >
@@ -915,6 +920,7 @@ function AuthPageContent() {
                   </div>
 
                   <button
+                    suppressHydrationWarning
                     onClick={handleLogin}
                     disabled={isLoading}
                     className="w-full bg-green-500 hover:bg-green-600 text-white font-semibold py-3 rounded-full transition-all shadow-lg hover:shadow-xl disabled:opacity-50"
@@ -926,6 +932,7 @@ function AuthPageContent() {
                 <div className="text-center mt-6">
                   <span className="text-gray-600">Don't have an account? </span>
                   <button
+                    suppressHydrationWarning
                     onClick={() => setIsLogin(false)}
                     className="text-green-500 font-semibold hover:text-green-600 transition-all"
                   >
