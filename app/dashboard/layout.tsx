@@ -7,6 +7,7 @@ import { useSession, signOut } from 'next-auth/react';
 import { useEffect, useMemo, useState } from 'react';
 import { Menu, UserRound, LogOut, ShieldAlert, ShieldCheck, User, ChevronRight, Briefcase, LogIn, UserPlus } from 'lucide-react';
 import clsx from 'clsx';
+import Footer from '@/components/Footer';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession();
@@ -50,7 +51,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-slate-50 flex flex-col">
       <header className="sticky top-0 z-40 bg-white/90 backdrop-blur shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="h-16 flex items-center justify-between">
@@ -260,9 +261,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         )}
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-grow w-full">
         {children}
       </main>
+      <Footer />
     </div>
   );
 }
