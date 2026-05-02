@@ -73,7 +73,80 @@ interface FileUploadFieldProps {
 }
 
 
+// Password Strength Indicator Component
+const PasswordStrengthIndicator: React.FC<{ password: string }> = ({ password }) => {
+  if (!password) return null;
 
+  const checks = [
+    { label: 'At least 6 characters', met: password.length >= 6 },
+    { label: 'Contains uppercase letter', met: /[A-Z]/.test(password) },
+    { label: 'Contains lowercase letter', met: /[a-z]/.test(password) },
+    { label: 'Contains a number', met: /[0-9]/.test(password) },
+  ];
+
+  const metCount = checks.filter(c => c.met).length;
+  const strengthPercent = (metCount / checks.length) * 100;
+  const strengthLabel = metCount <= 1 ? 'Weak' : metCount === 2 ? 'Fair' : metCount === 3 ? 'Good' : 'Strong';
+  const strengthColor = metCount <= 1 ? 'bg-red-500' : metCount === 2 ? 'bg-orange-400' : metCount === 3 ? 'bg-yellow-400' : 'bg-green-500';
+  const strengthTextColor = metCount <= 1 ? 'text-red-500' : metCount === 2 ? 'text-orange-400' : metCount === 3 ? 'text-yellow-500' : 'text-green-500';
+
+  return (
+    <div className="mb-4 px-1 -mt-2">
+      <div className="flex items-center gap-2 mb-2">
+        <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all duration-300 ${strengthColor}`}
+            style={{ width: `${strengthPercent}%` }}
+          />
+        </div>
+        <span className={`text-xs font-semibold ${strengthTextColor} min-w-[40px]`}>{strengthLabel}</span>
+      </div>
+      <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+        {checks.map((check) => (
+          <div key={check.label} className="flex items-center gap-1.5">
+            {check.met ? (
+              <svg className="w-3.5 h-3.5 text-green-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            ) : (
+              <svg className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            )}
+            <span className={`text-xs ${check.met ? 'text-green-600' : 'text-gray-400'}`}>{check.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// Password Match Indicator Component
+const PasswordMatchIndicator: React.FC<{ password: string; confirmPassword: string }> = ({ password, confirmPassword }) => {
+  if (!confirmPassword) return null;
+
+  const matches = password === confirmPassword;
+
+  return (
+    <div className="flex items-center gap-1.5 px-1 -mt-2 mb-4">
+      {matches ? (
+        <>
+          <svg className="w-4 h-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+          <span className="text-xs text-green-600 font-medium">Passwords match</span>
+        </>
+      ) : (
+        <>
+          <svg className="w-4 h-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+          <span className="text-xs text-red-500 font-medium">Passwords do not match</span>
+        </>
+      )}
+    </div>
+  );
+};
 
 
 // Move components outside to prevent recreation on every render
@@ -185,6 +258,13 @@ function AuthPageContent() {
   const [otpTimer, setOtpTimer] = useState<number>(0);
   const [isVerifyingOtp, setIsVerifyingOtp] = useState<boolean>(false);
 
+  // Email OTP State
+  const [isEmailVerified, setIsEmailVerified] = useState<boolean>(false);
+  const [emailOtpSent, setEmailOtpSent] = useState<boolean>(false);
+  const [emailOtpInput, setEmailOtpInput] = useState<string>('');
+  const [emailOtpTimer, setEmailOtpTimer] = useState<number>(0);
+  const [isVerifyingEmailOtp, setIsVerifyingEmailOtp] = useState<boolean>(false);
+
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (otpTimer > 0) {
@@ -194,6 +274,16 @@ function AuthPageContent() {
     }
     return () => clearInterval(interval);
   }, [otpTimer]);
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (emailOtpTimer > 0) {
+      interval = setInterval(() => {
+        setEmailOtpTimer((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [emailOtpTimer]);
 
   useEffect(() => {
     // Redirect if already authenticated
@@ -255,6 +345,8 @@ function AuthPageContent() {
         newErrors.email = 'Email is required';
       } else if (!/\S+@\S+\.\S+/.test(registerData.email)) {
         newErrors.email = 'Email is invalid';
+      } else if (!isEmailVerified) {
+        newErrors.email = 'Please verify your email address';
       }
       if (!registerData.mobilePhone.trim()) {
         newErrors.mobilePhone = 'Mobile phone is required';
@@ -351,6 +443,65 @@ function AuthPageContent() {
     }
   };
 
+  const handleSendEmailOtp = async () => {
+    if (!registerData.email.trim() || !/\S+@\S+\.\S+/.test(registerData.email)) {
+      setErrors({ ...errors, email: 'Enter a valid email first' });
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/otp/email/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: registerData.email })
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        setEmailOtpSent(true);
+        setEmailOtpTimer(60); // 60s cooldown
+        alert('Email OTP sent successfully!');
+      } else {
+        alert(data.error || 'Failed to send email OTP');
+      }
+    } catch (error) {
+      console.error('Email OTP Send Error:', error);
+      alert('Failed to send email OTP');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleVerifyEmailOtp = async () => {
+    if (!emailOtpInput) {
+      alert('Please enter email OTP');
+      return;
+    }
+    setIsVerifyingEmailOtp(true);
+    try {
+      const response = await fetch('/api/otp/email/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: registerData.email, otp: emailOtpInput })
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        setIsEmailVerified(true);
+        setEmailOtpSent(false); // Hide OTP field
+        setErrors({ ...errors, email: '' }); // Clear error
+        alert('Email verified successfully!');
+      } else {
+        alert(data.error || 'Invalid email OTP');
+      }
+    } catch (error) {
+      console.error('Email Verification Error:', error);
+      alert('Email verification failed');
+    } finally {
+      setIsVerifyingEmailOtp(false);
+    }
+  };
 
   const handleLogin = async (): Promise<void> => {
     setIsLoading(true);
@@ -551,15 +702,114 @@ function AuthPageContent() {
                   />
                 </div>
 
-                <InputField
-                  label="Email"
-                  type="email"
-                  value={registerData.email}
-                  onChange={(e) => setRegisterData({ ...registerData, email: e.target.value })}
-                  placeholder="Enter your Email"
-                  required
-                  error={errors.email}
-                />
+                <div className="bg-gray-50 p-4 rounded-2xl mb-4 border border-gray-100">
+                  <label className="block text-gray-700 text-sm font-medium mb-2">
+                    Email <span className="text-red-500">*</span>
+                  </label>
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <input
+                        type="email"
+                        value={registerData.email}
+                        onChange={(e) => {
+                          if (!isEmailVerified) {
+                            setRegisterData({ ...registerData, email: e.target.value });
+                          }
+                        }}
+                        disabled={isEmailVerified}
+                        placeholder="Enter your Email"
+                        className={`w-full px-4 py-3 bg-gray-100 border-none rounded-full focus:outline-none focus:ring-2 transition-all text-black placeholder:text-black placeholder:opacity-60 ${errors.email ? 'ring-2 ring-red-400' : isEmailVerified ? 'ring-2 ring-green-500 bg-green-50' : 'focus:ring-green-400'
+                          }`}
+                      />
+                    </div>
+
+                    {!isEmailVerified && /\S+@\S+\.\S+/.test(registerData.email) && !emailOtpSent && (
+                      <button
+                        onClick={handleSendEmailOtp}
+                        disabled={isLoading || emailOtpTimer > 0}
+                        className="px-6 py-2 bg-green-500 text-white rounded-full font-semibold hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all whitespace-nowrap shadow-sm"
+                      >
+                        {isLoading ? 'Sending...' : emailOtpTimer > 0 ? `Wait ${emailOtpTimer}s` : 'Verify'}
+                      </button>
+                    )}
+
+                    {isEmailVerified && (
+                      <div className="flex items-center justify-center w-12 h-12 bg-green-100 rounded-full text-green-600">
+                        <CheckCircle size={24} />
+                      </div>
+                    )}
+                  </div>
+                  {errors.email && <p className="text-red-500 text-xs mt-1 ml-4">{errors.email}</p>}
+
+                  {emailOtpSent && !isEmailVerified && (
+                    <div className="mt-4 animate-in fade-in slide-in-from-top-2">
+                      <p className="text-black font-medium mb-2 text-center">Enter Email Verification Code</p>
+                      <div className="flex gap-2 justify-center mb-4">
+                        {[0, 1, 2, 3, 4, 5].map((index) => (
+                          <input
+                            key={`email-otp-${index}`}
+                            id={`email-otp-${index}`}
+                            type="text"
+                            maxLength={1}
+                            value={emailOtpInput[index] || ''}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              if (!/^\d*$/.test(value)) return;
+
+                              const newOtp = emailOtpInput.split('');
+                              while (newOtp.length < 6) newOtp.push(''); // Ensure length
+                              newOtp[index] = value;
+                              const newOtpStr = newOtp.join('').substring(0, 6);
+                              setEmailOtpInput(newOtpStr);
+
+                              if (value && index < 5) {
+                                const nextInput = document.getElementById(`email-otp-${index + 1}`);
+                                nextInput?.focus();
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Backspace' && !emailOtpInput[index] && index > 0) {
+                                const prevInput = document.getElementById(`email-otp-${index - 1}`);
+                                prevInput?.focus();
+                              }
+                            }}
+                            onPaste={(e) => {
+                              e.preventDefault();
+                              const pastedData = e.clipboardData.getData('text').slice(0, 6).replace(/\D/g, '');
+                              if (pastedData) {
+                                setEmailOtpInput(pastedData);
+                                // Focus last filled
+                                const targetIndex = Math.min(pastedData.length - 1, 5);
+                                document.getElementById(`email-otp-${targetIndex}`)?.focus();
+                              }
+                            }}
+                            className="w-10 h-12 text-center text-xl font-bold bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-black transition-all shadow-sm"
+                          />
+                        ))}
+                      </div>
+                      <div className="flex justify-center">
+                        <button
+                          onClick={handleVerifyEmailOtp}
+                          disabled={isVerifyingEmailOtp || emailOtpInput.length !== 6}
+                          className="px-8 py-2 bg-green-600 text-white rounded-full font-semibold hover:bg-green-700 transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {isVerifyingEmailOtp ? 'Verifying...' : 'Submit Code'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  {emailOtpSent && !isEmailVerified && (
+                    <div className="mt-2 text-center">
+                      <button
+                        onClick={handleSendEmailOtp}
+                        disabled={emailOtpTimer > 0 || isLoading}
+                        className="text-xs text-green-600 hover:underline disabled:text-gray-400 disabled:no-underline"
+                      >
+                        {emailOtpTimer > 0 ? `Resend code in ${emailOtpTimer}s` : 'Resend Code'}
+                      </button>
+                    </div>
+                  )}
+                </div>
 
                 <div className="bg-gray-50 p-4 rounded-2xl mb-4 border border-gray-100">
                   <label className="block text-gray-700 text-sm font-medium mb-2">
@@ -710,7 +960,28 @@ function AuthPageContent() {
                 <PasswordField
                   label="Password"
                   value={registerData.password}
-                  onChange={(e) => setRegisterData({ ...registerData, password: e.target.value })}
+                  onChange={(e) => {
+                    const newPassword = e.target.value;
+                    const newErrors = { ...errors };
+
+                    setRegisterData({ ...registerData, password: newPassword });
+
+                    // Real-time validation for password
+                    if (newPassword.length < 6) {
+                      newErrors.password = 'Password must be at least 6 characters';
+                    } else {
+                      delete newErrors.password;
+                    }
+
+                    // Check if confirms still matches
+                    if (registerData.confirmPassword && newPassword !== registerData.confirmPassword) {
+                      newErrors.confirmPassword = 'Passwords do not match';
+                    } else if (registerData.confirmPassword && newPassword === registerData.confirmPassword) {
+                      delete newErrors.confirmPassword;
+                    }
+
+                    setErrors(newErrors);
+                  }}
                   placeholder="Enter your Password"
                   show={showPassword}
                   toggleShow={() => setShowPassword(!showPassword)}
@@ -718,16 +989,34 @@ function AuthPageContent() {
                   error={errors.password}
                 />
 
+                <PasswordStrengthIndicator password={registerData.password} />
+
                 <PasswordField
                   label="Confirm Password"
                   value={registerData.confirmPassword}
-                  onChange={(e) => setRegisterData({ ...registerData, confirmPassword: e.target.value })}
+                  onChange={(e) => {
+                    const newConfirmPassword = e.target.value;
+                    const newErrors = { ...errors };
+
+                    setRegisterData({ ...registerData, confirmPassword: newConfirmPassword });
+
+                    // Real-time validation for confirm password
+                    if (registerData.password !== newConfirmPassword) {
+                      newErrors.confirmPassword = 'Passwords do not match';
+                    } else {
+                      delete newErrors.confirmPassword;
+                    }
+
+                    setErrors(newErrors);
+                  }}
                   placeholder="Confirm your Password"
                   show={showConfirmPassword}
                   toggleShow={() => setShowConfirmPassword(!showConfirmPassword)}
                   required
                   error={errors.confirmPassword}
                 />
+
+                <PasswordMatchIndicator password={registerData.password} confirmPassword={registerData.confirmPassword} />
               </div>
             )}
 
