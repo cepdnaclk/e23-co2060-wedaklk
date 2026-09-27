@@ -1,0 +1,32 @@
+{
+    "title": "wedak.lk",
+    "team": [
+        {
+            "name": "T.U.Danthanarayana",
+            "email": "e23051@eng.pdn.ac.lk",
+            "eNumber": "E/23/051"
+        },
+        {
+            "name": "K.H.K.R.Kalhara",
+            "email": "e23159@eng.pdn.ac.lk",
+            "eNumber": "E/23/159"
+        },
+        {
+            "name": "B.A.D.K.Karunarathna",
+            "email": "e23169@eng.pdn.ac.lk",
+            "eNumber": "E/23/169"
+        },
+        {
+            "name": "H.G.H.D.Gamage",
+            "email": "e23105@eng.pdn.ac.lk",
+            "eNumber": "E/23/105"
+        }
+    ],
+    "tags": [
+        "Web Development",
+        "Community Marketplace",
+        ""
+    ],
+    "image": "cover_page.jpg",
+    "thumbnail": "thumbnail.jpg"
+}
